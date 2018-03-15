@@ -63,22 +63,22 @@ class Application(tk.Frame):
         self.master.title('AdaptiveThreshold Simulator')
         self.data = None
         self.photo_image = None
-        self.create_menu()
+        self.menu_bar = self.create_menu()
+        self.master.configure(menu=self.menu_bar)
         self.create_widgets()
 
     def create_menu(self):
-        self.menu_bar = tk.Menu(self)
 
         def open_filedialog():
             file_path = filedialog.askopenfilename()
             self.load_image(ImageData.imread(file_path))
             pass
 
+        menu_bar = tk.Menu(self)
         menu_file = tk.Menu(self)
         menu_file.add_command(label='Open(O)...', under=0, accelerator='Ctrl+O', command=open_filedialog)
-        self.menu_bar.add_cascade(menu=menu_file, label='File')
-        #
-        self.master.configure(menu=self.menu_bar)
+        menu_bar.add_cascade(menu=menu_file, label='File')
+        return menu_bar
 
     def create_widgets(self):
         controls = dict()
@@ -87,25 +87,25 @@ class Application(tk.Frame):
 
         controls['ADAPTIVE'] = {'label': '0:MEAN_C / 1:GAUSSIAN_C',
                                 'from_': cv2.ADAPTIVE_THRESH_MEAN_C, 'to': cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                'length': 300, 'orient': tk.HORIZONTAL, 'command': self.__onchanged_scalevalue}
+                                'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_adaptive = tk.Scale(self.topframe, controls['ADAPTIVE'])
         self.scale_adaptive.set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
         self.scale_adaptive.pack()
         
         controls['THRESHOLDTYPE'] = {'label': '0:BINARY / 1:INV',
                                      'from_': cv2.THRESH_BINARY, 'to': cv2.THRESH_BINARY_INV,
-                                     'length': 300, 'orient': tk.HORIZONTAL, 'command': self.__onchanged_scalevalue}
+                                     'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_thresholdType = tk.Scale(self.topframe, controls['THRESHOLDTYPE'])
         self.scale_thresholdType.pack()
         # initial stepvalue 3.
         controls['BLOCKSIZE'] = {'label': 'blocksize', 'from_': 3, 'to': 255,
-                                 'length': 300, 'orient': tk.HORIZONTAL, 'command': self.__onchanged_scalevalue}
+                                 'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_blocksize = tk.Scale(self.topframe, controls['BLOCKSIZE'])
         self.scale_blocksize.set(11)
         self.scale_blocksize.pack()
         
         controls['C'] = {'label': 'c', 'from_': 0, 'to': 255,
-                         'length': 300, 'orient': tk.HORIZONTAL, 'command': self.__onchanged_scalevalue}
+                         'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_c = tk.Scale(self.topframe, controls['C'])
         self.scale_c.set(2)
         self.scale_c.pack()
@@ -113,7 +113,7 @@ class Application(tk.Frame):
         self.lblimage = tk.Label(self)
         self.lblimage.grid(row=1, column=0)
 
-    def draw(self):
+    def draw(self, event):
         size = self.scale_blocksize.get()
         c = self.scale_c.get()
         # adaptiveThreshold params check
@@ -141,9 +141,6 @@ class Application(tk.Frame):
     def __change_image(self, src):
         self.photo_image = ImageTk.PhotoImage(Image.fromarray(src))
         self.lblimage.configure(image=self.photo_image)
-
-    def __onchanged_scalevalue(self, event):
-        self.draw()
 
 
 def main():
