@@ -1,9 +1,19 @@
 # -*- coding: utf-8 -*-
 import argparse
+from logging import getLogger, DEBUG, StreamHandler
 import tkinter as tk
 # library
+import numpy as np
 import cv2
 from PIL import Image, ImageTk
+
+PROGRAM_NAME = 'adaptiveThreshold'
+# logging
+handler = StreamHandler()
+handler.setLevel(DEBUG)
+logger = getLogger(PROGRAM_NAME)
+logger.setLevel(DEBUG)
+logger.addHandler(handler)
 
 
 class ImageData(object):
@@ -11,6 +21,31 @@ class ImageData(object):
         assert src is not None
         self.__canvas = src.copy()
         self.__gray_scale = cv2.cvtColor(self.canvas, cv2.COLOR_BGR2GRAY)
+
+    @staticmethod
+    def imread(file_name: str, flags: int=cv2.IMREAD_COLOR):
+        """
+        Unicode Path/Filename for imread Not supported.
+        ■ref
+            https://github.com/opencv/opencv/issues/4292
+
+        cv2.imread alternative = np.asarray & cv2.imdecode
+        Unicode Path/Filename image file read.
+        :param file_name:
+        :param flags: cv2.IMREAD_COLOR
+        :return: {Mat}image
+            FileNotFoundError image is None
+        """
+        image = None
+        try:
+            with open(file_name, 'rb') as file:
+                buffer = np.asarray(bytearray(file.read()), dtype=np.uint8)
+                image = cv2.imdecode(buffer, flags)
+        except FileNotFoundError as ex:
+            # cv2.imread compatible
+            logger.error(ex)
+            pass
+        return image
 
     @property
     def canvas(self):
@@ -62,7 +97,6 @@ class Application(tk.Frame):
         self.lblimage = tk.Label(self)
         self.lblimage.grid(row=1, column=0)
 
-
     def draw(self):
         adaptive_method = self.__adaptiveMethod[self.scale_adaptive.get()]
         threshold_type = self.__thresholdType[self.scale_thresholdType.get()]
@@ -98,17 +132,17 @@ class Application(tk.Frame):
 
 
 def main():
-    input_file = r'../images/kodim07.png'
-
-    parser = argparse.ArgumentParser(prog='adaptiveThreshold',
+    #input_file = r'../images/kodim07.png'
+    input_file = r'../images/桜_768-512.jpg'
+    parser = argparse.ArgumentParser(prog=PROGRAM_NAME,
                                      description='AdaptiveThreshold Simulator')
     parser.add_argument('input_file', metavar=None, nargs='?', default=input_file)
-    parser.add_argument('--version', action='version', version='%(prog)s 0.0.1')
+    parser.add_argument('--version', action='version', version='%(prog)s 0.0.2')
     args = parser.parse_args()
-    print('args:{0}'.format(args))
+    logger.info('args:{0}'.format(args))
     
     app = Application()
-    app.load_image(cv2.imread(args.input_file))
+    app.load_image(ImageData.imread(args.input_file))
     app.pack()
     app.mainloop()
 
