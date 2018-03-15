@@ -70,10 +70,11 @@ class Application(tk.Frame):
         self.master.update_idletasks()
         self.data = None
         self.photo_image = None
+        self.Component = {}
+        self.history = deque(maxlen=12)
         self.menu_bar = self.create_menu()
         self.master.configure(menu=self.menu_bar)
         self.create_widgets()
-        self.Component = {}
 
     def create_menu(self) -> tk.Menu:
         menu_bar = tk.Menu(self, tearoff=False)
@@ -82,13 +83,13 @@ class Application(tk.Frame):
             menu = tk.Menu(self, tearoff=False)
             # open
             menu.add_command(label='Open(O)...', under=6, accelerator='Ctrl+O',
-                                  command=partial(self.open_filedialog, event=None))
+                             command=partial(self.open_filedialog, event=None))
             self.bind_all('<Control-O>', self.open_filedialog)
             self.bind_all('<Control-o>', self.open_filedialog)
             menu.add_separator()
             # exit
             menu.add_command(label='Exit', under=0, accelerator='Ctrl+Shift+Q',
-                                  command=partial(self.on_application_exit, event=None))
+                             command=partial(self.on_application_exit, event=None))
             self.bind_all('<Control-Shift-Q>', self.on_application_exit)
             self.bind_all('<Control-Shift-q>', self.on_application_exit)
             return menu
@@ -96,7 +97,7 @@ class Application(tk.Frame):
         def crate_image_menu() -> tk.Menu:
             menu = tk.Menu(self, tearoff=False)
             menu.add_command(label='Src Image(S)...', under=6, accelerator='Ctrl+S',
-                                  command=partial(self.open_filedialog, event=None))
+                             command=partial(self.open_filedialog, event=None))
             return menu
 
         menu_bar.add_cascade(menu=crate_file_menu(), label='File')
@@ -113,7 +114,7 @@ class Application(tk.Frame):
         self.load_image(file_path)
         self.draw(None)
 
-    def paramsFrame(self):
+    def params_frame(self):
         controls = dict()
         self.topframe = tk.LabelFrame(self, text='params')
         self.topframe.grid(row=0, column=0)
@@ -145,54 +146,56 @@ class Application(tk.Frame):
         self.scale_c.pack()
         self.scale_c.set(2)
 
-    def get_params(self):
+    def get_params(self) -> tuple:
         """
         :return:maxValue, adaptiveMethod, thresholdType, blockSize, C
         """
         return 255, self.scale_adaptive.get(), self.scale_thresholdType.get(), self.scale_blocksize.get(), self.scale_c.get()
 
-    def create_output_frame(self):
-        self.outputframe = tk.LabelFrame(self, text='output')
-        self.outputframe.grid(row=0, column=1)
-        self.editBox = tk.Listbox(self.outputframe)
-        self.history = deque(maxlen=20)
-        print()
-        #print(', '.join(self.get_params()))
+    def output_frame(self):
+        self.output_frame = tk.LabelFrame(self, text='output')
+        self.output_frame.grid(row=0, column=1)
+        self.message = tk.Label(self.output_frame, text='Select a row and CTRL+C: Copy it to the clipboard.')
+        self.message.pack()
 
+        class ScrollListBox(tk.Listbox):
+            def __init__(self, master=None, cnf={}, **kw):
+                super().__init__(master, cnf, **kw)
+                self.y_scrollbar = tk.Scrollbar(master, orient=tk.VERTICAL, command=self.yview)
+                self.y_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+                self.configure(yscrollcommand=self.y_scrollbar.set)
+                self.pack(side=tk.LEFT, fill=tk.Y)
 
-        sb1 = tk.Scrollbar(self.outputframe, orient='v', command=self.editBox.yview)
-        sb2 = tk.Scrollbar(self.outputframe, orient='h', command=self.editBox.xview)
+        self.listbox = ScrollListBox(self.output_frame, width=40, height=self.history.maxlen)
 
-        # Listbox の設定
-        self.editBox.configure(yscrollcommand=sb1.set)
-        self.editBox.configure(xscrollcommand=sb2.set)
-
-        self.editBox.pack()
-        pass
     def create_widgets(self):
-        self.paramsFrame()
-        #self.create_output_frame()
+        self.params_frame()
+        self.output_frame()
         self.lblimage = tk.Label(self)
-        self.lblimage.grid(row=1, column=0)
+        self.lblimage.grid(row=1, columnspan=2)
 
     def draw(self, event):
-        size = self.scale_blocksize.get()
-        c = self.scale_c.get()
+        max_value, adaptive_method, threshold_type, block_size, c = self.get_params()
         # adaptiveThreshold params check
         # blocksize range:Odd numbers{3,5,7,9,…} intial:3
         #   in:0,0  out:NG blocksize of even.
         #   in:2,0  out:NG blocksize of even.
         #   in:3,10　out:NG size * size - c < 0
         #   in:5,25 out:OK
-        if size % 2 == 0:
+        if block_size % 2 == 0:
             return
-        if (size * size - c) < 0:
+        if (block_size * block_size - c) < 0:
             return
         try:
-            result = cv2.adaptiveThreshold(self.data.gray_scale, 255,
-                                           self.scale_adaptive.get(), self.scale_thresholdType.get(), size, c)
-            #insert_str = 'cv2.adaptiveThreshold(src, {0})'.format(', '.join(map(str, self.get_params())))
-            #self.editBox.insert(tk.END, insert_str)
+            result = cv2.adaptiveThreshold(self.data.gray_scale, max_value,
+                                           adaptive_method, threshold_type, block_size, c)
+            insert_str = 'cv2.adaptiveThreshold(src, {0})'.format(', '.join(map(str, self.get_params())))
+            # 先頭に追加
+            self.history.appendleft(insert_str)
+            self.listbox.delete(0, tk.END)
+            for text in self.history:
+                self.listbox.insert(tk.END, text)
+
             self.__change_image(result)
         except Exception as ex:
             print(ex)
