@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
-import argparse
+from argparse import ArgumentParser
+from functools import partial
 from logging import getLogger, DEBUG, StreamHandler
+from pathlib import Path
+import sys
+
 import tkinter as tk
 from tkinter import filedialog
 # library
@@ -67,18 +71,31 @@ class Application(tk.Frame):
         self.master.configure(menu=self.menu_bar)
         self.create_widgets()
 
-    def create_menu(self):
-
-        def open_filedialog():
-            file_path = filedialog.askopenfilename()
-            self.load_image(ImageData.imread(file_path))
-            pass
-
+    def create_menu(self) -> tk.Menu:
         menu_bar = tk.Menu(self)
         menu_file = tk.Menu(self)
-        menu_file.add_command(label='Open(O)...', under=0, accelerator='Ctrl+O', command=open_filedialog)
+        # open
+        menu_file.add_command(label='Open(O)...', under=0, accelerator='Ctrl+O',
+                              command=partial(self.open_filedialog, event=None))
+        self.bind_all('<Control-O>', self.open_filedialog)
+        self.bind_all('<Control-o>', self.open_filedialog)
+        # exit
+        menu_file.add_command(label='Exit', under=0, accelerator='Ctrl+Shift+Q',
+                              command=partial(self.on_application_exit, event=None))
+        self.bind_all('<Control-Shift-Q>', self.on_application_exit)
+        self.bind_all('<Control-Shift-q>', self.on_application_exit)
+
         menu_bar.add_cascade(menu=menu_file, label='File')
         return menu_bar
+
+    def on_application_exit(self, event):
+        sys.exit(0)
+
+    def open_filedialog(self, event):
+        file_path = filedialog.askopenfilename()
+        if len(file_path) == 0:
+            return
+        self.load_image(file_path)
 
     def create_widgets(self):
         controls = dict()
@@ -96,6 +113,7 @@ class Application(tk.Frame):
                                      'from_': cv2.THRESH_BINARY, 'to': cv2.THRESH_BINARY_INV,
                                      'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_thresholdType = tk.Scale(self.topframe, controls['THRESHOLDTYPE'])
+        self.scale_thresholdType.set(cv2.THRESH_BINARY)
         self.scale_thresholdType.pack()
         # initial stepvalue 3.
         controls['BLOCKSIZE'] = {'label': 'blocksize', 'from_': 3, 'to': 255,
@@ -134,7 +152,10 @@ class Application(tk.Frame):
             print(ex)
             pass
 
-    def load_image(self, src):
+    def load_image(self, file_path: str):
+        p = Path(file_path)
+        logger.info('load file:{0}'.format(p.name))
+        src = ImageData.imread(str(p))
         self.data = ImageData(src)
         self.__change_image(src)
 
@@ -146,15 +167,14 @@ class Application(tk.Frame):
 def main():
     input_file = r'../images/kodim07.png'
     #input_file = r'../images/桜_768-512.jpg'
-    parser = argparse.ArgumentParser(prog=PROGRAM_NAME,
-                                     description='AdaptiveThreshold Simulator')
+    parser = ArgumentParser(prog=PROGRAM_NAME, description='AdaptiveThreshold Simulator')
     parser.add_argument('input_file', metavar=None, nargs='?', default=input_file)
     parser.add_argument('--version', action='version', version='%(prog)s 0.0.2')
     args = parser.parse_args()
     logger.info('args:{0}'.format(args))
     
     app = Application()
-    app.load_image(ImageData.imread(args.input_file))
+    app.load_image(args.input_file)
     app.pack()
     app.mainloop()
 
