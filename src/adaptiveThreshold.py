@@ -2,6 +2,7 @@
 import argparse
 from logging import getLogger, DEBUG, StreamHandler
 import tkinter as tk
+from tkinter import filedialog
 # library
 import numpy as np
 import cv2
@@ -61,23 +62,38 @@ class Application(tk.Frame):
         super().__init__(master)
         self.master.title('AdaptiveThreshold Simulator')
         self.data = None
-        self.__adaptiveMethod = {0: cv2.ADAPTIVE_THRESH_MEAN_C, 1: cv2.ADAPTIVE_THRESH_GAUSSIAN_C}
-        self.__thresholdType = {0: cv2.THRESH_BINARY, 1: cv2.THRESH_BINARY_INV}
         self.photo_image = None
+        self.create_menu()
         self.create_widgets()
+
+    def create_menu(self):
+        self.menu_bar = tk.Menu(self)
+
+        def open_filedialog():
+            file_path = filedialog.askopenfilename()
+            self.load_image(ImageData.imread(file_path))
+            pass
+
+        menu_file = tk.Menu(self)
+        menu_file.add_command(label='Open(O)...', under=0, accelerator='Ctrl+O', command=open_filedialog)
+        self.menu_bar.add_cascade(menu=menu_file, label='File')
+        #
+        self.master.configure(menu=self.menu_bar)
 
     def create_widgets(self):
         controls = dict()
         self.topframe = tk.LabelFrame(self, text='params')
         self.topframe.grid(row=0, column=0)
 
-        controls['ADAPTIVE'] = {'label': '0:MEAN_C / 1:GAUSSIAN_C', 'from_': 0, 'to': 1,
+        controls['ADAPTIVE'] = {'label': '0:MEAN_C / 1:GAUSSIAN_C',
+                                'from_': cv2.ADAPTIVE_THRESH_MEAN_C, 'to': cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                 'length': 300, 'orient': tk.HORIZONTAL, 'command': self.__onchanged_scalevalue}
         self.scale_adaptive = tk.Scale(self.topframe, controls['ADAPTIVE'])
-        self.scale_adaptive.set(1)
+        self.scale_adaptive.set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
         self.scale_adaptive.pack()
         
-        controls['THRESHOLDTYPE'] = {'label': '0:BINARY / 1:INV', 'from_': 0, 'to': 1,
+        controls['THRESHOLDTYPE'] = {'label': '0:BINARY / 1:INV',
+                                     'from_': cv2.THRESH_BINARY, 'to': cv2.THRESH_BINARY_INV,
                                      'length': 300, 'orient': tk.HORIZONTAL, 'command': self.__onchanged_scalevalue}
         self.scale_thresholdType = tk.Scale(self.topframe, controls['THRESHOLDTYPE'])
         self.scale_thresholdType.pack()
@@ -98,8 +114,6 @@ class Application(tk.Frame):
         self.lblimage.grid(row=1, column=0)
 
     def draw(self):
-        adaptive_method = self.__adaptiveMethod[self.scale_adaptive.get()]
-        threshold_type = self.__thresholdType[self.scale_thresholdType.get()]
         size = self.scale_blocksize.get()
         c = self.scale_c.get()
         # adaptiveThreshold params check
@@ -113,7 +127,8 @@ class Application(tk.Frame):
         if (size * size - c) < 0:
             return
         try:
-            result = cv2.adaptiveThreshold(self.data.gray_scale, 255, adaptive_method, threshold_type, size, c)
+            result = cv2.adaptiveThreshold(self.data.gray_scale, 255,
+                                           self.scale_adaptive.get(), self.scale_thresholdType.get(), size, c)
             self.__change_image(result)
         except Exception as ex:
             print(ex)
@@ -132,8 +147,8 @@ class Application(tk.Frame):
 
 
 def main():
-    #input_file = r'../images/kodim07.png'
-    input_file = r'../images/桜_768-512.jpg'
+    input_file = r'../images/kodim07.png'
+    #input_file = r'../images/桜_768-512.jpg'
     parser = argparse.ArgumentParser(prog=PROGRAM_NAME,
                                      description='AdaptiveThreshold Simulator')
     parser.add_argument('input_file', metavar=None, nargs='?', default=input_file)

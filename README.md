@@ -1,6 +1,7 @@
 ## Introduction
 
 Adaptive Threshold Simulator
+
 Python cv2.adaptiveThreshold function parameter Simulator.
 
 GUI widget: tkinter
