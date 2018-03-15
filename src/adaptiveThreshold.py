@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 from argparse import ArgumentParser
+from collections import deque
 from functools import partial
 from logging import getLogger, DEBUG, StreamHandler
 from pathlib import Path
 import sys
 
 import tkinter as tk
+import tkinter.ttk as ttk
 from tkinter import filedialog
 # library
 import numpy as np
@@ -62,30 +64,43 @@ class ImageData(object):
 
 
 class Application(tk.Frame):
-    def __init__(self, master=None):
-        super().__init__(master)
+    def __init__(self):
+        super().__init__()
         self.master.title('AdaptiveThreshold Simulator')
+        self.master.update_idletasks()
         self.data = None
         self.photo_image = None
         self.menu_bar = self.create_menu()
         self.master.configure(menu=self.menu_bar)
         self.create_widgets()
+        self.Component = {}
 
     def create_menu(self) -> tk.Menu:
-        menu_bar = tk.Menu(self)
-        menu_file = tk.Menu(self)
-        # open
-        menu_file.add_command(label='Open(O)...', under=0, accelerator='Ctrl+O',
-                              command=partial(self.open_filedialog, event=None))
-        self.bind_all('<Control-O>', self.open_filedialog)
-        self.bind_all('<Control-o>', self.open_filedialog)
-        # exit
-        menu_file.add_command(label='Exit', under=0, accelerator='Ctrl+Shift+Q',
-                              command=partial(self.on_application_exit, event=None))
-        self.bind_all('<Control-Shift-Q>', self.on_application_exit)
-        self.bind_all('<Control-Shift-q>', self.on_application_exit)
+        menu_bar = tk.Menu(self, tearoff=False)
 
-        menu_bar.add_cascade(menu=menu_file, label='File')
+        def crate_file_menu() -> tk.Menu:
+            menu = tk.Menu(self, tearoff=False)
+            # open
+            menu.add_command(label='Open(O)...', under=6, accelerator='Ctrl+O',
+                                  command=partial(self.open_filedialog, event=None))
+            self.bind_all('<Control-O>', self.open_filedialog)
+            self.bind_all('<Control-o>', self.open_filedialog)
+            menu.add_separator()
+            # exit
+            menu.add_command(label='Exit', under=0, accelerator='Ctrl+Shift+Q',
+                                  command=partial(self.on_application_exit, event=None))
+            self.bind_all('<Control-Shift-Q>', self.on_application_exit)
+            self.bind_all('<Control-Shift-q>', self.on_application_exit)
+            return menu
+
+        def crate_image_menu() -> tk.Menu:
+            menu = tk.Menu(self, tearoff=False)
+            menu.add_command(label='Src Image(S)...', under=6, accelerator='Ctrl+S',
+                                  command=partial(self.open_filedialog, event=None))
+            return menu
+
+        menu_bar.add_cascade(menu=crate_file_menu(), label='File')
+        menu_bar.add_cascade(menu=crate_image_menu(), label='Image')
         return menu_bar
 
     def on_application_exit(self, event):
@@ -96,8 +111,9 @@ class Application(tk.Frame):
         if len(file_path) == 0:
             return
         self.load_image(file_path)
+        self.draw(None)
 
-    def create_widgets(self):
+    def paramsFrame(self):
         controls = dict()
         self.topframe = tk.LabelFrame(self, text='params')
         self.topframe.grid(row=0, column=0)
@@ -108,7 +124,7 @@ class Application(tk.Frame):
         self.scale_adaptive = tk.Scale(self.topframe, controls['ADAPTIVE'])
         self.scale_adaptive.set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
         self.scale_adaptive.pack()
-        
+
         controls['THRESHOLDTYPE'] = {'label': '0:BINARY / 1:INV',
                                      'from_': cv2.THRESH_BINARY, 'to': cv2.THRESH_BINARY_INV,
                                      'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
@@ -121,13 +137,41 @@ class Application(tk.Frame):
         self.scale_blocksize = tk.Scale(self.topframe, controls['BLOCKSIZE'])
         self.scale_blocksize.set(11)
         self.scale_blocksize.pack()
-        
+
         controls['C'] = {'label': 'c', 'from_': 0, 'to': 255,
                          'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_c = tk.Scale(self.topframe, controls['C'])
-        self.scale_c.set(2)
+
         self.scale_c.pack()
-        
+        self.scale_c.set(2)
+
+    def get_params(self):
+        """
+        :return:maxValue, adaptiveMethod, thresholdType, blockSize, C
+        """
+        return 255, self.scale_adaptive.get(), self.scale_thresholdType.get(), self.scale_blocksize.get(), self.scale_c.get()
+
+    def create_output_frame(self):
+        self.outputframe = tk.LabelFrame(self, text='output')
+        self.outputframe.grid(row=0, column=1)
+        self.editBox = tk.Listbox(self.outputframe)
+        self.history = deque(maxlen=20)
+        print()
+        #print(', '.join(self.get_params()))
+
+
+        sb1 = tk.Scrollbar(self.outputframe, orient='v', command=self.editBox.yview)
+        sb2 = tk.Scrollbar(self.outputframe, orient='h', command=self.editBox.xview)
+
+        # Listbox の設定
+        self.editBox.configure(yscrollcommand=sb1.set)
+        self.editBox.configure(xscrollcommand=sb2.set)
+
+        self.editBox.pack()
+        pass
+    def create_widgets(self):
+        self.paramsFrame()
+        #self.create_output_frame()
         self.lblimage = tk.Label(self)
         self.lblimage.grid(row=1, column=0)
 
@@ -147,6 +191,8 @@ class Application(tk.Frame):
         try:
             result = cv2.adaptiveThreshold(self.data.gray_scale, 255,
                                            self.scale_adaptive.get(), self.scale_thresholdType.get(), size, c)
+            #insert_str = 'cv2.adaptiveThreshold(src, {0})'.format(', '.join(map(str, self.get_params())))
+            #self.editBox.insert(tk.END, insert_str)
             self.__change_image(result)
         except Exception as ex:
             print(ex)
