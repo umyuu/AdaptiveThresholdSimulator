@@ -36,7 +36,7 @@ class ImageData(object):
         ■ref
             https://github.com/opencv/opencv/issues/4292
 
-        cv2.imread alternative = np.asarray & cv2.imdecode
+        cv2.imread alternative = np.fromfile & cv2.imdecode
         Unicode Path/Filename image file read.
         :param file_name:
         :param flags: cv2.IMREAD_COLOR
@@ -45,9 +45,8 @@ class ImageData(object):
         """
         image = None
         try:
-            with open(file_name, 'rb') as file:
-                buffer = np.asarray(bytearray(file.read()), dtype=np.uint8)
-                image = cv2.imdecode(buffer, flags)
+            data = np.fromfile(file_name, dtype=np.uint8)
+            image = cv2.imdecode(data, flags)
         except FileNotFoundError as ex:
             # cv2.imread compatible
             logger.error(ex)
@@ -71,10 +70,14 @@ class Application(tk.Frame):
         self.data = None
         self.photo_image = None
         self.Component = {}
+        self.aside = tk.Frame(self)
+
         self.history = deque(maxlen=12)
         self.menu_bar = self.create_menu()
         self.master.configure(menu=self.menu_bar)
         self.create_widgets()
+
+        self.aside.grid(row=0, column=0)
 
     def create_menu(self) -> tk.Menu:
         menu_bar = tk.Menu(self, tearoff=False)
@@ -86,6 +89,10 @@ class Application(tk.Frame):
                              command=partial(self.open_filedialog, event=None))
             self.bind_all('<Control-O>', self.open_filedialog)
             self.bind_all('<Control-o>', self.open_filedialog)
+            menu.add_command(label='Save(S)...', under=6, accelerator='Ctrl+S',
+                             command=partial(self.save_filedialog, event=None))
+            self.bind_all('<Control-S>', self.save_filedialog)
+            self.bind_all('<Control-s>', self.save_filedialog)
             menu.add_separator()
             # exit
             menu.add_command(label='Exit', under=0, accelerator='Ctrl+Shift+Q',
@@ -114,36 +121,48 @@ class Application(tk.Frame):
         self.load_image(file_path)
         self.draw(None)
 
+    def save_filedialog(self, event):
+        file_path = filedialog.asksaveasfilename(parent=self,
+                                                 filetypes=[('png', '*.png'), ('jpg', '*.jpg'), ('*', '*.*')],
+                                                 title='名前を付けて保存...')
+        if len(file_path) == 0:
+            return
+
+        with open(file_path, 'w') as f:
+            f.write(self.data.gray_scale)
+
     def params_frame(self):
         controls = dict()
-        self.topframe = tk.LabelFrame(self, text='params')
+        self.topframe = tk.LabelFrame(self.aside, text='params')
         self.topframe.grid(row=0, column=0)
 
         controls['ADAPTIVE'] = {'label': '0:MEAN_C / 1:GAUSSIAN_C',
                                 'from_': cv2.ADAPTIVE_THRESH_MEAN_C, 'to': cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                 'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_adaptive = tk.Scale(self.topframe, controls['ADAPTIVE'])
-        self.scale_adaptive.set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
         self.scale_adaptive.pack()
 
         controls['THRESHOLDTYPE'] = {'label': '0:BINARY / 1:INV',
                                      'from_': cv2.THRESH_BINARY, 'to': cv2.THRESH_BINARY_INV,
                                      'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_thresholdType = tk.Scale(self.topframe, controls['THRESHOLDTYPE'])
-        self.scale_thresholdType.set(cv2.THRESH_BINARY)
         self.scale_thresholdType.pack()
         # initial stepvalue 3.
         controls['BLOCKSIZE'] = {'label': 'blocksize', 'from_': 3, 'to': 255,
                                  'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_blocksize = tk.Scale(self.topframe, controls['BLOCKSIZE'])
-        self.scale_blocksize.set(11)
         self.scale_blocksize.pack()
-
         controls['C'] = {'label': 'c', 'from_': 0, 'to': 255,
                          'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_c = tk.Scale(self.topframe, controls['C'])
 
         self.scale_c.pack()
+        self.scale_reset()
+
+    def scale_reset(self):
+        self.scale_adaptive.set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
+        self.scale_thresholdType.set(cv2.THRESH_BINARY)
+        self.scale_blocksize.set(11)
         self.scale_c.set(2)
 
     def get_params(self) -> tuple:
@@ -153,8 +172,9 @@ class Application(tk.Frame):
         return 255, self.scale_adaptive.get(), self.scale_thresholdType.get(), self.scale_blocksize.get(), self.scale_c.get()
 
     def output_frame(self):
-        self.output_frame = tk.LabelFrame(self, text='output')
-        self.output_frame.grid(row=0, column=1)
+        self.output_frame = tk.LabelFrame(self.aside, text='output')
+        #self.output_frame.grid(row=0, column=1)
+        self.output_frame.grid(row=1, column=0)
         self.message = tk.Label(self.output_frame, text='Select a row and CTRL+C: Copy it to the clipboard.')
         self.message.pack()
 
@@ -172,9 +192,11 @@ class Application(tk.Frame):
         self.params_frame()
         self.output_frame()
         self.lblimage = tk.Label(self)
-        self.lblimage.grid(row=1, columnspan=2)
+        self.lblimage.grid(row=0, column=1)
+        #self.lblimage.grid(row=1, columnspan=2)
 
     def draw(self, event):
+        print(event)
         max_value, adaptive_method, threshold_type, block_size, c = self.get_params()
         # adaptiveThreshold params check
         # blocksize range:Odd numbers{3,5,7,9,…} intial:3
@@ -189,7 +211,7 @@ class Application(tk.Frame):
         try:
             result = cv2.adaptiveThreshold(self.data.gray_scale, max_value,
                                            adaptive_method, threshold_type, block_size, c)
-            insert_str = 'cv2.adaptiveThreshold(src, {0})'.format(', '.join(map(str, self.get_params())))
+            insert_str = 'ret = cv2.adaptiveThreshold(src, {0})'.format(', '.join(map(str, self.get_params())))
             # 先頭に追加
             self.history.appendleft(insert_str)
             self.listbox.delete(0, tk.END)
