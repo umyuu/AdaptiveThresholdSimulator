@@ -222,6 +222,10 @@ class Application(tk.Frame):
             elif param == ImageType.GRAY_SCALE:
                 img = self.data.gray_scale
 
+            assert img is not None
+            label.src = ImageTk.PhotoImage(Image.fromarray(img))
+            label.configure(image=label.src)
+
         WidgetUtils.set_visible(parent, visible)
 
     def on_application_exit(self, event=None):
