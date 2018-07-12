@@ -123,18 +123,27 @@ class WidgetUtils(object):
             widget.withdraw()
 
 
-class ImagePanel(tk.Label):
+class ImageWindow(tk.Toplevel):
     """
-    Labelと画像の関連付を行う。
-    Local変数だとGarbageCollectionにより参照が消えて、
+    カラー画像とグレースケール画像を表示するために、別ウィンドウとする。
     """
     def __init__(self, master=None, cnf={}, **kw):
         super().__init__(master, cnf, **kw)
-        self.__src = None
+        self.protocol('WM_DELETE_WINDOW', partial(WidgetUtils.set_visible, widget=self, visible=False))
+        WidgetUtils.set_visible(self, False)
+        self.__lblimage = tk.Label(self)
+        self.__lblimage.pack()
 
-    @property
-    def src(self):
-        return self.__src
+    def set_image(self, img):
+        assert img is not None
+        self.__lblimage.src = ImageTk.PhotoImage(Image.fromarray(img))
+        self.__lblimage.configure(image=self.__lblimage.src)
+    """
+    Todo
+    Labelと画像の関連付を行う。
+    Local変数だとGarbageCollectionにより参照が消えて、画像が表示されないことがあるため。
+    """
+
 
 
 class Application(tk.Frame):
@@ -145,15 +154,11 @@ class Application(tk.Frame):
         self.data = None #オリジナル画像
         self.photo_image = None
         self.Component = {}
-        self.aside = tk.Frame(self)
-        self.color_image = tk.Toplevel(self)
-        self.color_image.protocol('WM_DELETE_WINDOW',
-                                partial(WidgetUtils.set_visible, widget=self.color_image, visible=False))
-        WidgetUtils.set_visible(self.color_image, False)
-        self.gray_scale_image = tk.Toplevel(self)
-        self.gray_scale_image.protocol('WM_DELETE_WINDOW',
-                                       partial(WidgetUtils.set_visible, widget=self.gray_scale_image, visible=False))
-        WidgetUtils.set_visible(self.gray_scale_image, False)
+        self.aside = tk.Frame(self) # 左側のコンテンツ
+        self.main_side = tk.Frame(self) # 右側のコンテンツ
+        self.var_file_name = tk.StringVar()
+        self.color_image = ImageWindow(self)
+        self.gray_scale_image = ImageWindow(self)
 
         self.history = deque(maxlen=12)
         self.menu_bar = self.create_menubar()
@@ -161,6 +166,7 @@ class Application(tk.Frame):
         self.create_widgets()
 
         self.aside.grid(row=0, column=0)
+        self.main_side.grid(row=0, column=1)
 
     def create_menubar(self) -> tk.Menu:
         """
@@ -207,24 +213,21 @@ class Application(tk.Frame):
         """
         TopLevel Windowを表示
         :param event
-        :param param: event sender      1:Src Image, 2:GrayScale Image
+        :param param: event sender  COLOR, GRAY_SCALE
         :return:
         """
         assert param, 'toggle_changed:{0}'.format(param)
-        # TopLevel Window, Menu Visible, Label
-        l = [(self.lblimage_original.master, self.var_original.get(), self.lblimage_original),
-             (self.lblimage_gray_scale.master, self.var_gray_scale.get(), self.lblimage_gray_scale)]
-        parent, visible, label = l[param.value]
+        # TopLevel Window, Menu Visible
+        l = [(self.color_image, self.var_original.get()),
+             (self.gray_scale_image, self.var_gray_scale.get())]
+        parent, visible = l[param.value]
         if visible:
             img = None
             if param == ImageType.COLOR:
                 img = cv2.cvtColor(self.data.color, cv2.COLOR_BGRA2RGB)
             elif param == ImageType.GRAY_SCALE:
                 img = self.data.gray_scale
-
-            assert img is not None
-            label.src = ImageTk.PhotoImage(Image.fromarray(img))
-            label.configure(image=label.src)
+            parent.set_image(img)
 
         WidgetUtils.set_visible(parent, visible)
 
@@ -283,10 +286,9 @@ class Application(tk.Frame):
         controls['C'] = {'label': 'c', 'from_': 0, 'to': 255,
                          'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_c = tk.Scale(self.topframe, controls['C'])
-
         self.scale_c.pack()
-        self.scale_reset()
 
+        self.scale_reset()
 
     def command_frame(self):
         self.command_frame = tk.Frame(self.aside)
@@ -329,12 +331,13 @@ class Application(tk.Frame):
         self.command_frame()
         self.output_frame()
 
-        self.lblimage_original = tk.Label(self.color_image)
-        self.lblimage_original.pack()
-        self.lblimage_gray_scale = tk.Label(self.gray_scale_image)
-        self.lblimage_gray_scale.pack()
-        self.lblimage = tk.Label(self)
-        self.lblimage.grid(row=0, column=1)
+        self.image_panel = tk.Label(self.main_side, text='CTRL+S…Image Save Dialog')
+        self.image_panel.grid(row=0, column=0)
+        self.txtfile_name = tk.Entry(self.main_side, textvariable=self.var_file_name)
+        self.txtfile_name.grid(row=0, column=1)
+        self.lblimage = tk.Label(self.main_side)
+        self.lblimage.grid(row=1, columnspan=2)
+        #self.lblimage.grid(row=0, column=1)
         #self.lblimage.grid(row=1, columnspan=2)
 
     def draw(self, event):
@@ -369,6 +372,7 @@ class Application(tk.Frame):
         p = Path(file_path)
         logger.info('load file:{0}'.format(p.name))
         self.data = ImageData(str(p))
+        self.var_file_name.set(p.name)
         self.__change_image(self.data.gray_scale)
         # 画像を変更時にオリジナルとグレースケール画像も更新
         self.toggle_changed(param=ImageType.COLOR)
