@@ -27,7 +27,7 @@ class ImageData(object):
     def __init__(self, src):
         assert src is not None
         self.__canvas = src.copy()
-        self.__gray_scale = cv2.cvtColor(self.canvas, cv2.COLOR_BGR2GRAY)
+        self.__gray_scale = cv2.cvtColor(self.canvas, cv2.COLOR_BGRA2GRAY)
 
     @staticmethod
     def imread(file_name: str, flags: int=cv2.IMREAD_COLOR):
@@ -40,13 +40,16 @@ class ImageData(object):
         Unicode Path/Filename image file read.
         :param file_name:
         :param flags: cv2.IMREAD_COLOR
-        :return: {Mat}image
+        :return: {Mat}image BGR
             FileNotFoundError image is None
         """
         image = None
         try:
-            data = np.fromfile(file_name, dtype=np.uint8)
-            image = cv2.imdecode(data, flags)
+            #data = np.fromfile(file_name, dtype=np.uint8)
+            #image = cv2.imdecode(data, flags)
+            with open(file_name, 'rb') as file:
+                buffer = np.asarray(bytearray(file.read()), dtype=np.uint8)
+                image = cv2.imdecode(buffer, flags)
         except FileNotFoundError as ex:
             # cv2.imread compatible
             logger.error(ex)
@@ -62,6 +65,46 @@ class ImageData(object):
         return self.__gray_scale
 
 
+class WidgetUtils(object):
+    @staticmethod
+    def bind_all(widget: tk.Widget, modifier: str="", letter: str="", callback=None) -> None:
+        """
+        Keyboard Shortcut Assign.
+        :param widget:
+        :param modifier:
+        :param letter:
+        :param callback:
+        :return:
+        """
+        # numelic letter multi assign check.
+        upper = letter.upper()
+        lower = letter.lower()
+        widget.bind_all('<{0}-{1}>'.format(modifier, upper), callback)
+        if not upper == lower:
+            widget.bind_all('<{0}-{1}>'.format(modifier, lower), callback)
+
+    @staticmethod
+    def set_visible(widget: tk.Widget, visible: bool=False) -> None:
+        if visible:
+            widget.deiconify()
+        else:
+            widget.withdraw()
+
+
+class ImageLabel(tk.Label):
+    """
+    Labelと画像の関連付を行う。
+    Local変数だとGarbageCollectionにより参照が消えて、
+    """
+    def __init__(self, master=None, cnf={}, **kw):
+        super().__init__(master, cnf, **kw)
+        self.__src = None
+
+    @property
+    def src(self):
+        return self.__src
+
+
 class Application(tk.Frame):
     def __init__(self):
         super().__init__()
@@ -71,70 +114,120 @@ class Application(tk.Frame):
         self.photo_image = None
         self.Component = {}
         self.aside = tk.Frame(self)
+        self.src_image = tk.Toplevel(self)
+        self.src_image.protocol('WM_DELETE_WINDOW',
+                                partial(WidgetUtils.set_visible, widget=self.src_image, visible=False))
+        WidgetUtils.set_visible(self.src_image, False)
+        self.gray_scale_image = tk.Toplevel(self)
+        self.gray_scale_image.protocol('WM_DELETE_WINDOW',
+                                       partial(WidgetUtils.set_visible, widget=self.gray_scale_image, visible=False))
+        WidgetUtils.set_visible(self.gray_scale_image, False)
 
         self.history = deque(maxlen=12)
-        self.menu_bar = self.create_menu()
+        self.menu_bar = self.create_menubar()
         self.master.configure(menu=self.menu_bar)
         self.create_widgets()
 
         self.aside.grid(row=0, column=0)
 
-    def create_menu(self) -> tk.Menu:
+    def create_menubar(self) -> tk.Menu:
+        """
+        MenuBarの作成
+        :return:
+        """
         menu_bar = tk.Menu(self, tearoff=False)
 
         def crate_file_menu() -> tk.Menu:
             menu = tk.Menu(self, tearoff=False)
             # open
             menu.add_command(label='Open(O)...', under=6, accelerator='Ctrl+O',
-                             command=partial(self.open_filedialog, event=None))
-            self.bind_all('<Control-O>', self.open_filedialog)
-            self.bind_all('<Control-o>', self.open_filedialog)
-            menu.add_command(label='Save(S)...', under=6, accelerator='Ctrl+S',
-                             command=partial(self.save_filedialog, event=None))
-            self.bind_all('<Control-S>', self.save_filedialog)
-            self.bind_all('<Control-s>', self.save_filedialog)
+                             command=self.open_filedialog)
+            WidgetUtils.bind_all(self, 'Control', 'O', self.open_filedialog)
+            #menu.add_command(label='Save(S)...', under=6, accelerator='Ctrl+S',
+            #                 command=self.save_filedialog)
+            #WidgetUtils.bind_all(self, 'Control', 'S', self.save_filedialog)
             menu.add_separator()
             # exit
             menu.add_command(label='Exit', under=0, accelerator='Ctrl+Shift+Q',
-                             command=partial(self.on_application_exit, event=None))
-            self.bind_all('<Control-Shift-Q>', self.on_application_exit)
-            self.bind_all('<Control-Shift-q>', self.on_application_exit)
+                             command=self.on_application_exit)
+            WidgetUtils.bind_all(self, 'Control-Shift', 'Q', self.on_application_exit)
             return menu
 
         def crate_image_menu() -> tk.Menu:
             menu = tk.Menu(self, tearoff=False)
-            menu.add_command(label='Src Image(S)...', under=6, accelerator='Ctrl+S',
-                             command=partial(self.open_filedialog, event=None))
+            self.var_original = tk.BooleanVar()
+            self.var_original.set(False)
+            menu.add_checkbutton(label="Show Original Image...", accelerator='Ctrl+A',
+                                 command=partial(self.toggle_changed, param=1), variable=self.var_original)
+            WidgetUtils.bind_all(self, 'Control', 'A', partial(self.toggle_changed, param=1))
+            self.var_gray_scale = tk.BooleanVar()
+            self.var_gray_scale.set(False)
+            menu.add_checkbutton(label="Show GrayScale Image...", accelerator='Ctrl+B',
+                                 command=partial(self.toggle_changed, param=2), variable=self.var_gray_scale)
+            WidgetUtils.bind_all(self, 'Control', 'B', partial(self.toggle_changed, param=2))
             return menu
 
         menu_bar.add_cascade(menu=crate_file_menu(), label='File')
         menu_bar.add_cascade(menu=crate_image_menu(), label='Image')
         return menu_bar
 
-    def on_application_exit(self, event):
+    def toggle_changed(self, event=None, param=0):
+        """
+        TopLevel Windowを表示
+        :param event
+        :param param: event sender      1:Src Image, 2:GrayScale Image
+        :return:
+        """
+        if param == 1:
+            parent = self.lblimage_original.master
+            visible = self.var_original.get()
+            if visible:
+                rgb = cv2.cvtColor(self.data.canvas, cv2.COLOR_BGRA2RGB)
+                self.lblimage_original.src = ImageTk.PhotoImage(Image.fromarray(rgb))
+                self.lblimage_original.configure(image=self.lblimage_original.src)
+            WidgetUtils.set_visible(parent, visible)
+            return
+        elif param == 2:
+            parent = self.lblimage_gray_scale.master
+            visible = self.var_gray_scale.get()
+            if visible:
+                self.lblimage_gray_scale.src = ImageTk.PhotoImage(Image.fromarray(self.data.gray_scale))
+                self.lblimage_gray_scale.configure(image=self.lblimage_gray_scale.src)
+            WidgetUtils.set_visible(parent, visible)
+            return
+        assert False, 'toggle_changed:{0}'.format(param)
+
+    def on_application_exit(self, event=None):
         sys.exit(0)
 
-    def open_filedialog(self, event):
-        file_path = filedialog.askopenfilename()
+    def open_filedialog(self, event=None):
+        ALL_IMAGE = ('Image Files', ('*.png', '*.jpg', '*.jpeg'))
+        IMAGE_FILE_TYPES = [ALL_IMAGE, ('png (*.png)', '*.png'),
+                            ('jpg (*.jpg, *.jpeg)', ("*.jpg", "*.jpeg")), ('*', '*.*')]
+        file_path = filedialog.askopenfilename(parent=self,
+                                               filetypes=IMAGE_FILE_TYPES)
         if len(file_path) == 0:
             return
         self.load_image(file_path)
         self.draw(None)
 
-    def save_filedialog(self, event):
+    def save_filedialog(self, event=None):
+        IMAGE_FILE_TYPES = [('png (*.png)', '*.png'), ('jpg (*.jpg, *.jpeg)', ("*.jpg", "*.jpeg")), ('*', '*.*')]
         file_path = filedialog.asksaveasfilename(parent=self,
-                                                 filetypes=[('png', '*.png'), ('jpg', '*.jpg'), ('*', '*.*')],
+                                                 filetypes=IMAGE_FILE_TYPES,
                                                  title='名前を付けて保存...')
         if len(file_path) == 0:
             return
-
-        with open(file_path, 'w') as f:
-            f.write(self.data.gray_scale)
+        cv2.imwrite(file_path, self.data.gray_scale)
+        #with open(file_path, 'w') as f:
+        #    f.write(self.data.gray_scale)
 
     def params_frame(self):
         controls = dict()
         self.topframe = tk.LabelFrame(self.aside, text='params')
-        self.topframe.grid(row=0, column=0)
+
+        self.topframe.pack(side=tk.TOP)
+        #self.topframe.grid(row=0, column=0)
 
         controls['ADAPTIVE'] = {'label': '0:MEAN_C / 1:GAUSSIAN_C',
                                 'from_': cv2.ADAPTIVE_THRESH_MEAN_C, 'to': cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -159,6 +252,12 @@ class Application(tk.Frame):
         self.scale_c.pack()
         self.scale_reset()
 
+    def command_frame(self):
+        self.command_frame = tk.Frame(self.aside)
+        self.button_reset = tk.Button(self.command_frame, text='RESET', command=self.scale_reset)
+        self.button_reset.pack()
+        self.command_frame.pack()
+
     def scale_reset(self):
         self.scale_adaptive.set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
         self.scale_thresholdType.set(cv2.THRESH_BINARY)
@@ -174,8 +273,9 @@ class Application(tk.Frame):
     def output_frame(self):
         self.output_frame = tk.LabelFrame(self.aside, text='output')
         #self.output_frame.grid(row=0, column=1)
-        self.output_frame.grid(row=1, column=0)
-        self.message = tk.Label(self.output_frame, text='Select a row and CTRL+C: Copy it to the clipboard.')
+        #self.output_frame.grid(row=1, column=0)
+        self.output_frame.pack(side=tk.TOP, fill=tk.Y)
+        self.message = tk.Label(self.output_frame, text='Select a row and CTRL+C\nCopy it to the clipboard.')
         self.message.pack()
 
         class ScrollListBox(tk.Listbox):
@@ -190,7 +290,13 @@ class Application(tk.Frame):
 
     def create_widgets(self):
         self.params_frame()
+        self.command_frame()
         self.output_frame()
+
+        self.lblimage_original = tk.Label(self.src_image)
+        self.lblimage_original.pack()
+        self.lblimage_gray_scale = tk.Label(self.gray_scale_image)
+        self.lblimage_gray_scale.pack()
         self.lblimage = tk.Label(self)
         self.lblimage.grid(row=0, column=1)
         #self.lblimage.grid(row=1, columnspan=2)
@@ -229,10 +335,13 @@ class Application(tk.Frame):
         src = ImageData.imread(str(p))
         self.data = ImageData(src)
         self.__change_image(src)
+        # 画像を変更時にオリジナルとグレースケール画像も更新
+        self.toggle_changed(param=1)
+        self.toggle_changed(param=2)
 
     def __change_image(self, src):
-        self.photo_image = ImageTk.PhotoImage(Image.fromarray(src))
-        self.lblimage.configure(image=self.photo_image)
+        self.lblimage.src = ImageTk.PhotoImage(Image.fromarray(src))
+        self.lblimage.configure(image=self.lblimage.src)
 
 
 def main():
