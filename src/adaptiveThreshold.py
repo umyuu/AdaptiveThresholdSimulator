@@ -24,9 +24,11 @@ logger.addHandler(handler)
 
 
 class ImageData(object):
-    def __init__(self, src):
-        assert src is not None
-        self.__canvas = src.copy()
+    def __init__(self, file_name: str):
+        self.__file_name = file_name
+        self.__src = ImageData.imread(file_name)
+        assert self.src is not None
+        self.__canvas = self.src.copy()
         self.__gray_scale = cv2.cvtColor(self.canvas, cv2.COLOR_BGRA2GRAY)
 
     @staticmethod
@@ -36,7 +38,7 @@ class ImageData(object):
         ■ref
             https://github.com/opencv/opencv/issues/4292
 
-        cv2.imread alternative = np.fromfile & cv2.imdecode
+        cv2.imread alternative = np.asarray & cv2.imdecode
         Unicode Path/Filename image file read.
         :param file_name:
         :param flags: cv2.IMREAD_COLOR
@@ -45,8 +47,6 @@ class ImageData(object):
         """
         image = None
         try:
-            #data = np.fromfile(file_name, dtype=np.uint8)
-            #image = cv2.imdecode(data, flags)
             with open(file_name, 'rb') as file:
                 buffer = np.asarray(bytearray(file.read()), dtype=np.uint8)
                 image = cv2.imdecode(buffer, flags)
@@ -55,6 +55,36 @@ class ImageData(object):
             logger.error(ex)
             pass
         return image
+
+    @staticmethod
+    def imwrite(file_name: str, image, params=None) -> bool:
+        """
+        Unicode Path/Filename for imwrite Not supported.
+        cv2.imwrite alternative = cv2.imencode & numpy.ndarray.tofile
+        :param file_name
+        :param image imagedata
+        :param params encode_param
+        """
+        try:
+            p = Path(file_name)
+            retval, buf  = cv2.imencode(p.suffix, image, params)
+            if not retval:
+                return retval
+            with p.open('wb') as f:
+                buf.tofile(f)
+            return True
+        except IOError as ex:
+            logger.error(ex)
+            pass
+        return False
+
+    @property
+    def file_name(self) -> str:
+        return self.__file_name
+
+    @property
+    def src(self):
+        return self.__src
 
     @property
     def canvas(self):
@@ -110,7 +140,7 @@ class Application(tk.Frame):
         super().__init__()
         self.master.title('AdaptiveThreshold Simulator')
         self.master.update_idletasks()
-        self.data = None
+        self.data = None #オリジナル画像
         self.photo_image = None
         self.Component = {}
         self.aside = tk.Frame(self)
@@ -143,9 +173,9 @@ class Application(tk.Frame):
             menu.add_command(label='Open(O)...', under=6, accelerator='Ctrl+O',
                              command=self.open_filedialog)
             WidgetUtils.bind_all(self, 'Control', 'O', self.open_filedialog)
-            #menu.add_command(label='Save(S)...', under=6, accelerator='Ctrl+S',
-            #                 command=self.save_filedialog)
-            #WidgetUtils.bind_all(self, 'Control', 'S', self.save_filedialog)
+            menu.add_command(label='Save(S)...', under=6, accelerator='Ctrl+S',
+                             command=self.save_filedialog)
+            WidgetUtils.bind_all(self, 'Control', 'S', self.save_filedialog)
             menu.add_separator()
             # exit
             menu.add_command(label='Exit', under=0, accelerator='Ctrl+Shift+Q',
@@ -212,15 +242,19 @@ class Application(tk.Frame):
         self.draw(None)
 
     def save_filedialog(self, event=None):
+        # create defalut file name.
+        p = Path(self.data.file_name)
+        file_name =  '_'.join(map(str, (p.stem, *self.get_params()))) + p.suffix
         IMAGE_FILE_TYPES = [('png (*.png)', '*.png'), ('jpg (*.jpg, *.jpeg)', ("*.jpg", "*.jpeg")), ('*', '*.*')]
         file_path = filedialog.asksaveasfilename(parent=self,
                                                  filetypes=IMAGE_FILE_TYPES,
+                                                 initialfile=file_name,
                                                  title='名前を付けて保存...')
         if len(file_path) == 0:
             return
-        cv2.imwrite(file_path, self.data.gray_scale)
-        #with open(file_path, 'w') as f:
-        #    f.write(self.data.gray_scale)
+
+        ImageData.imwrite(file_path, self.lblimage.np)
+        logger.info('saved:{0}'.format(file_path))
 
     def params_frame(self):
         controls = dict()
@@ -302,7 +336,7 @@ class Application(tk.Frame):
         #self.lblimage.grid(row=1, columnspan=2)
 
     def draw(self, event):
-        print(event)
+        #print(event)
         max_value, adaptive_method, threshold_type, block_size, c = self.get_params()
         # adaptiveThreshold params check
         # blocksize range:Odd numbers{3,5,7,9,…} intial:3
@@ -332,14 +366,14 @@ class Application(tk.Frame):
     def load_image(self, file_path: str):
         p = Path(file_path)
         logger.info('load file:{0}'.format(p.name))
-        src = ImageData.imread(str(p))
-        self.data = ImageData(src)
-        self.__change_image(src)
+        self.data = ImageData(str(p))
+        self.__change_image(self.data.gray_scale)
         # 画像を変更時にオリジナルとグレースケール画像も更新
         self.toggle_changed(param=1)
         self.toggle_changed(param=2)
 
     def __change_image(self, src):
+        self.lblimage.np = src
         self.lblimage.src = ImageTk.PhotoImage(Image.fromarray(src))
         self.lblimage.configure(image=self.lblimage.src)
 
@@ -349,7 +383,7 @@ def main():
     #input_file = r'../images/桜_768-512.jpg'
     parser = ArgumentParser(prog=PROGRAM_NAME, description='AdaptiveThreshold Simulator')
     parser.add_argument('input_file', metavar=None, nargs='?', default=input_file)
-    parser.add_argument('--version', action='version', version='%(prog)s 0.0.2')
+    parser.add_argument('--version', action='version', version='%(prog)s 0.0.3')
     args = parser.parse_args()
     logger.info('args:{0}'.format(args))
     
