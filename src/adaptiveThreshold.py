@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from argparse import ArgumentParser
 from collections import deque
+from enum import Enum, unique
 from functools import partial
 from logging import getLogger, DEBUG, StreamHandler
 from pathlib import Path
@@ -22,16 +23,19 @@ logger = getLogger(PROGRAM_NAME)
 logger.setLevel(DEBUG)
 logger.addHandler(handler)
 
+@unique
+class ImageType(Enum):
+    COLOR = 0
+    GRAY_SCALE = 1
 
 class ImageData(object):
     def __init__(self, file_name: str):
         self.__file_name = file_name
-        self.__src = ImageData.imread(file_name)
-        assert self.src is not None, 'image file empty'
-        self.__canvas = self.src.copy()
-        self.__gray_scale = cv2.cvtColor(self.canvas, cv2.COLOR_BGRA2GRAY)
-        ids = [id(self.src), id(self.canvas), id(self.gray_scale)]
-        assert len(ids) == len(set(ids)), 'shallow copy'
+        self.__color = ImageData.imread(file_name)
+        assert self.color is not None, 'cannot open file as image.'
+        self.__gray_scale = cv2.cvtColor(self.color, cv2.COLOR_BGRA2GRAY)
+        ids = [id(self.color), id(self.gray_scale)]
+        assert len(ids) == len(set(ids)), 'Shallow Copy'
 
     @staticmethod
     def imread(file_name: str, flags: int=cv2.IMREAD_COLOR):
@@ -85,12 +89,8 @@ class ImageData(object):
         return self.__file_name
 
     @property
-    def src(self):
-        return self.__src
-
-    @property
-    def canvas(self):
-        return self.__canvas
+    def color(self):
+        return self.__color
 
     @property
     def gray_scale(self):
@@ -123,7 +123,7 @@ class WidgetUtils(object):
             widget.withdraw()
 
 
-class ImageLabel(tk.Label):
+class ImagePanel(tk.Label):
     """
     Labelと画像の関連付を行う。
     Local変数だとGarbageCollectionにより参照が消えて、
@@ -146,10 +146,10 @@ class Application(tk.Frame):
         self.photo_image = None
         self.Component = {}
         self.aside = tk.Frame(self)
-        self.src_image = tk.Toplevel(self)
-        self.src_image.protocol('WM_DELETE_WINDOW',
-                                partial(WidgetUtils.set_visible, widget=self.src_image, visible=False))
-        WidgetUtils.set_visible(self.src_image, False)
+        self.color_image = tk.Toplevel(self)
+        self.color_image.protocol('WM_DELETE_WINDOW',
+                                partial(WidgetUtils.set_visible, widget=self.color_image, visible=False))
+        WidgetUtils.set_visible(self.color_image, False)
         self.gray_scale_image = tk.Toplevel(self)
         self.gray_scale_image.protocol('WM_DELETE_WINDOW',
                                        partial(WidgetUtils.set_visible, widget=self.gray_scale_image, visible=False))
@@ -190,44 +190,39 @@ class Application(tk.Frame):
             self.var_original = tk.BooleanVar()
             self.var_original.set(False)
             menu.add_checkbutton(label="Show Original Image...", accelerator='Ctrl+A',
-                                 command=partial(self.toggle_changed, param=1), variable=self.var_original)
-            WidgetUtils.bind_all(self, 'Control', 'A', partial(self.toggle_changed, param=1))
+                                 command=partial(self.toggle_changed, param=ImageType.COLOR), variable=self.var_original)
+            WidgetUtils.bind_all(self, 'Control', 'A', partial(self.toggle_changed, param=ImageType.COLOR))
             self.var_gray_scale = tk.BooleanVar()
             self.var_gray_scale.set(False)
             menu.add_checkbutton(label="Show GrayScale Image...", accelerator='Ctrl+B',
-                                 command=partial(self.toggle_changed, param=2), variable=self.var_gray_scale)
-            WidgetUtils.bind_all(self, 'Control', 'B', partial(self.toggle_changed, param=2))
+                                 command=partial(self.toggle_changed, param=ImageType.GRAY_SCALE), variable=self.var_gray_scale)
+            WidgetUtils.bind_all(self, 'Control', 'B', partial(self.toggle_changed, param=ImageType.GRAY_SCALE))
             return menu
 
         menu_bar.add_cascade(menu=crate_file_menu(), label='File')
         menu_bar.add_cascade(menu=crate_image_menu(), label='Image')
         return menu_bar
 
-    def toggle_changed(self, event=None, param=0):
+    def toggle_changed(self, event=None, param:ImageType=None):
         """
         TopLevel Windowを表示
         :param event
         :param param: event sender      1:Src Image, 2:GrayScale Image
         :return:
         """
-        if param == 1:
-            parent = self.lblimage_original.master
-            visible = self.var_original.get()
-            if visible:
-                rgb = cv2.cvtColor(self.data.canvas, cv2.COLOR_BGRA2RGB)
-                self.lblimage_original.src = ImageTk.PhotoImage(Image.fromarray(rgb))
-                self.lblimage_original.configure(image=self.lblimage_original.src)
-            WidgetUtils.set_visible(parent, visible)
-            return
-        elif param == 2:
-            parent = self.lblimage_gray_scale.master
-            visible = self.var_gray_scale.get()
-            if visible:
-                self.lblimage_gray_scale.src = ImageTk.PhotoImage(Image.fromarray(self.data.gray_scale))
-                self.lblimage_gray_scale.configure(image=self.lblimage_gray_scale.src)
-            WidgetUtils.set_visible(parent, visible)
-            return
-        assert False, 'toggle_changed:{0}'.format(param)
+        assert param, 'toggle_changed:{0}'.format(param)
+        # TopLevel Window, Menu Visible, Label
+        l = [(self.lblimage_original.master, self.var_original.get(), self.lblimage_original),
+             (self.lblimage_gray_scale.master, self.var_gray_scale.get(), self.lblimage_gray_scale)]
+        parent, visible, label = l[param.value]
+        if visible:
+            img = None
+            if param == ImageType.COLOR:
+                img = cv2.cvtColor(self.data.color, cv2.COLOR_BGRA2RGB)
+            elif param == ImageType.GRAY_SCALE:
+                img = self.data.gray_scale
+
+        WidgetUtils.set_visible(parent, visible)
 
     def on_application_exit(self, event=None):
         sys.exit(0)
@@ -244,7 +239,7 @@ class Application(tk.Frame):
         self.draw(None)
 
     def save_filedialog(self, event=None):
-        # create defalut file name.
+        # create default file name.
         p = Path(self.data.file_name)
         file_name =  '_'.join(map(str, (p.stem, *self.get_params()))) + p.suffix
         IMAGE_FILE_TYPES = [('png (*.png)', '*.png'), ('jpg (*.jpg, *.jpeg)', ("*.jpg", "*.jpeg")), ('*', '*.*')]
@@ -288,6 +283,7 @@ class Application(tk.Frame):
         self.scale_c.pack()
         self.scale_reset()
 
+
     def command_frame(self):
         self.command_frame = tk.Frame(self.aside)
         self.button_reset = tk.Button(self.command_frame, text='RESET', command=self.scale_reset)
@@ -329,7 +325,7 @@ class Application(tk.Frame):
         self.command_frame()
         self.output_frame()
 
-        self.lblimage_original = tk.Label(self.src_image)
+        self.lblimage_original = tk.Label(self.color_image)
         self.lblimage_original.pack()
         self.lblimage_gray_scale = tk.Label(self.gray_scale_image)
         self.lblimage_gray_scale.pack()
@@ -338,7 +334,7 @@ class Application(tk.Frame):
         #self.lblimage.grid(row=1, columnspan=2)
 
     def draw(self, event):
-        #print(event)
+        print(event)
         params = self.get_params()
         max_value, adaptive_method, threshold_type, block_size, c = params
         # adaptiveThreshold params check
@@ -371,8 +367,8 @@ class Application(tk.Frame):
         self.data = ImageData(str(p))
         self.__change_image(self.data.gray_scale)
         # 画像を変更時にオリジナルとグレースケール画像も更新
-        self.toggle_changed(param=1)
-        self.toggle_changed(param=2)
+        self.toggle_changed(param=ImageType.COLOR)
+        self.toggle_changed(param=ImageType.GRAY_SCALE)
 
     def __change_image(self, src):
         self.lblimage.np = src
