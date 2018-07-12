@@ -27,9 +27,11 @@ class ImageData(object):
     def __init__(self, file_name: str):
         self.__file_name = file_name
         self.__src = ImageData.imread(file_name)
-        assert self.src is not None
+        assert self.src is not None, 'image file empty'
         self.__canvas = self.src.copy()
         self.__gray_scale = cv2.cvtColor(self.canvas, cv2.COLOR_BGRA2GRAY)
+        ids = [id(self.src), id(self.canvas), id(self.gray_scale)]
+        assert len(ids) == len(set(ids)), 'shallow copy'
 
     @staticmethod
     def imread(file_name: str, flags: int=cv2.IMREAD_COLOR):
@@ -337,7 +339,8 @@ class Application(tk.Frame):
 
     def draw(self, event):
         #print(event)
-        max_value, adaptive_method, threshold_type, block_size, c = self.get_params()
+        params = self.get_params()
+        max_value, adaptive_method, threshold_type, block_size, c = params
         # adaptiveThreshold params check
         # blocksize range:Odd numbers{3,5,7,9,…} intial:3
         #   in:0,0  out:NG blocksize of even.
@@ -349,9 +352,8 @@ class Application(tk.Frame):
         if (block_size * block_size - c) < 0:
             return
         try:
-            result = cv2.adaptiveThreshold(self.data.gray_scale, max_value,
-                                           adaptive_method, threshold_type, block_size, c)
-            insert_str = 'ret = cv2.adaptiveThreshold(src, {0})'.format(', '.join(map(str, self.get_params())))
+            result = cv2.adaptiveThreshold(self.data.gray_scale, *params)
+            insert_str = 'ret = cv2.adaptiveThreshold(src, {0})'.format(', '.join(map(str, params)))
             # 先頭に追加
             self.history.appendleft(insert_str)
             self.listbox.delete(0, tk.END)
