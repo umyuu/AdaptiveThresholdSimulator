@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from argparse import ArgumentParser
 from collections import deque
-from enum import Enum, unique
 from functools import partial
 from logging import getLogger, DEBUG, StreamHandler
 from pathlib import Path
@@ -15,7 +14,8 @@ import numpy as np
 import cv2
 from PIL import Image, ImageTk
 
-PROGRAM_NAME = 'adaptiveThreshold'
+PROGRAM_NAME = 'AdaptiveThreshold'
+__version__ = '0.0.3'
 # logging
 handler = StreamHandler()
 handler.setLevel(DEBUG)
@@ -23,10 +23,6 @@ logger = getLogger(PROGRAM_NAME)
 logger.setLevel(DEBUG)
 logger.addHandler(handler)
 
-@unique
-class ImageType(Enum):
-    COLOR = 0
-    GRAY_SCALE = 1
 
 class ImageData(object):
     def __init__(self, file_name: str):
@@ -41,9 +37,7 @@ class ImageData(object):
     def imread(file_name: str, flags: int=cv2.IMREAD_COLOR):
         """
         Unicode Path/Filename for imread Not supported.
-        ■ref
-            https://github.com/opencv/opencv/issues/4292
-
+        @see https://github.com/opencv/opencv/issues/4292
         cv2.imread alternative = np.asarray & cv2.imdecode
         Unicode Path/Filename image file read.
         :param file_name:
@@ -69,11 +63,11 @@ class ImageData(object):
         cv2.imwrite alternative = cv2.imencode & numpy.ndarray.tofile
         :param file_name
         :param image imagedata
-        :param params encode_param
+        :param params encode params
         """
         try:
             p = Path(file_name)
-            retval, buf  = cv2.imencode(p.suffix, image, params)
+            retval, buf = cv2.imencode(p.suffix, image, params)
             if not retval:
                 return retval
             with p.open('wb') as f:
@@ -108,12 +102,10 @@ class WidgetUtils(object):
         :param callback:
         :return:
         """
-        # numelic letter multi assign check.
-        upper = letter.upper()
-        lower = letter.lower()
-        widget.bind_all('<{0}-{1}>'.format(modifier, upper), callback)
-        if not upper == lower:
-            widget.bind_all('<{0}-{1}>'.format(modifier, lower), callback)
+        widget.bind_all('<{0}-{1}>'.format(modifier, letter.upper()), callback)
+        # numeric letter multi assign check.
+        if not letter.isdecimal():
+            widget.bind_all('<{0}-{1}>'.format(modifier, letter.lower()), callback)
 
     @staticmethod
     def set_visible(widget: tk.Widget, visible: bool=False) -> None:
@@ -130,14 +122,21 @@ class ImageWindow(tk.Toplevel):
     def __init__(self, master=None, cnf={}, **kw):
         super().__init__(master, cnf, **kw)
         self.protocol('WM_DELETE_WINDOW', partial(WidgetUtils.set_visible, widget=self, visible=False))
-        WidgetUtils.set_visible(self, False)
-        self.__lblimage = tk.Label(self)
-        self.__lblimage.pack()
+        self.__label_image = tk.Label(self)
+        self.__label_image.pack()
+        self.__tag = None
 
     def set_image(self, img):
         assert img is not None
-        self.__lblimage.src = ImageTk.PhotoImage(Image.fromarray(img))
-        self.__lblimage.configure(image=self.__lblimage.src)
+        self.__label_image.src = ImageTk.PhotoImage(Image.fromarray(img))
+        self.__label_image.configure(image=self.__label_image.src)
+    @property
+    def tag(self) ->int:
+        return self.__tag
+
+    @tag.setter
+    def tag(self, value:int):
+        self.__tag = value
     """
     Todo
     Labelと画像の関連付を行う。
@@ -149,24 +148,24 @@ class ImageWindow(tk.Toplevel):
 class Application(tk.Frame):
     def __init__(self):
         super().__init__()
-        self.master.title('AdaptiveThreshold Simulator')
+        self.master.title('AdaptiveThreshold Simulator Ver:{0}'.format(__version__))
         self.master.update_idletasks()
         self.data = None #オリジナル画像
-        self.photo_image = None
         self.Component = {}
-        self.aside = tk.Frame(self) # 左側のコンテンツ
+        self.a_side = tk.Frame(self) # 左側のコンテンツ
         self.main_side = tk.Frame(self) # 右側のコンテンツ
         self.var_file_name = tk.StringVar()
         self.color_image = ImageWindow(self)
+        self.color_image.tag = 0
         self.gray_scale_image = ImageWindow(self)
-
+        self.gray_scale_image.tag = 1
         self.history = deque(maxlen=12)
         self.menu_bar = self.create_menubar()
         self.master.configure(menu=self.menu_bar)
         self.create_widgets()
 
-        self.aside.grid(row=0, column=0)
-        self.main_side.grid(row=0, column=1)
+        self.a_side.pack(side=tk.LEFT)
+        self.main_side.pack(side=tk.LEFT, fill=tk.Y)
 
     def create_menubar(self) -> tk.Menu:
         """
@@ -193,43 +192,47 @@ class Application(tk.Frame):
 
         def crate_image_menu() -> tk.Menu:
             menu = tk.Menu(self, tearoff=False)
-            self.var_original = tk.BooleanVar()
-            self.var_original.set(False)
-            menu.add_checkbutton(label="Show Original Image...", accelerator='Ctrl+A',
-                                 command=partial(self.toggle_changed, param=ImageType.COLOR), variable=self.var_original)
-            WidgetUtils.bind_all(self, 'Control', 'A', partial(self.toggle_changed, param=ImageType.COLOR))
-            self.var_gray_scale = tk.BooleanVar()
-            self.var_gray_scale.set(False)
-            menu.add_checkbutton(label="Show GrayScale Image...", accelerator='Ctrl+B',
-                                 command=partial(self.toggle_changed, param=ImageType.GRAY_SCALE), variable=self.var_gray_scale)
-            WidgetUtils.bind_all(self, 'Control', 'B', partial(self.toggle_changed, param=ImageType.GRAY_SCALE))
+            self.var_original = tk.BooleanVar(value=False)
+            menu.add_checkbutton(label="Show Original Image...", accelerator='Ctrl+1',
+                                 command=partial(self.toggle_changed, sender=self.color_image), variable=self.var_original)
+            WidgetUtils.bind_all(self, 'Control-KeyPress', '1', partial(self.toggle_changed, sender=self.color_image, toggle=True))
+            self.var_gray_scale = tk.BooleanVar(value=False)
+            menu.add_checkbutton(label="Show GrayScale Image...", accelerator='Ctrl+2',
+                                 command=partial(self.toggle_changed, sender=self.gray_scale_image), variable=self.var_gray_scale)
+            WidgetUtils.bind_all(self, 'Control-KeyPress', '2', partial(self.toggle_changed, sender=self.gray_scale_image, toggle=True))
             return menu
 
         menu_bar.add_cascade(menu=crate_file_menu(), label='File')
         menu_bar.add_cascade(menu=crate_image_menu(), label='Image')
         return menu_bar
 
-    def toggle_changed(self, event=None, param:ImageType=None):
+    def toggle_changed(self, event=None, sender:ImageWindow=None, toggle:bool=False):
         """
-        TopLevel Windowを表示
+        カラー画像/グレースケール画像を別ウィンドウで表示
+        呼び出し元：1,メニューのチェックボックス→チェックボックス側で行うので、トグル処理はしない。
+                    2,キーボードショートカット→トグル処理を行う。
+                    3,LoadImage→画像の表示更新。
         :param event
-        :param param: event sender  COLOR, GRAY_SCALE
+        :param sender event sender Widget
+        :param toggle True…チェックボックスのトグル処理を行う。Falseはしない。
         :return:
         """
-        assert param, 'toggle_changed:{0}'.format(param)
-        # TopLevel Window, Menu Visible
-        l = [(self.color_image, self.var_original.get()),
-             (self.gray_scale_image, self.var_gray_scale.get())]
-        parent, visible = l[param.value]
+        assert sender, 'toggle_changed:{0}'.format(sender)
+        # Menu Visible
+        l = [self.var_original, self.var_gray_scale]
+        var = l[sender.tag]
+        if toggle:
+            var.set(not var.get())
+        visible = var.get()
         if visible:
             img = None
-            if param == ImageType.COLOR:
+            if sender.tag == 0:
                 img = cv2.cvtColor(self.data.color, cv2.COLOR_BGRA2RGB)
-            elif param == ImageType.GRAY_SCALE:
+            elif sender.tag == 1:
                 img = self.data.gray_scale
-            parent.set_image(img)
+            sender.set_image(img)
 
-        WidgetUtils.set_visible(parent, visible)
+        WidgetUtils.set_visible(sender, visible)
 
     def on_application_exit(self, event=None):
         sys.exit(0)
@@ -256,42 +259,39 @@ class Application(tk.Frame):
                                                  title='名前を付けて保存...')
         if len(file_path) == 0:
             return
-
-        ImageData.imwrite(file_path, self.lblimage.np)
+        ImageData.imwrite(file_path, self.label_image.np)
         logger.info('saved:{0}'.format(file_path))
 
     def params_frame(self):
         controls = dict()
-        self.topframe = tk.LabelFrame(self.aside, text='params')
-
-        self.topframe.pack(side=tk.TOP)
-        #self.topframe.grid(row=0, column=0)
+        self.top_frame = tk.LabelFrame(self.a_side, text='params')
+        self.top_frame.pack(side=tk.TOP)
 
         controls['ADAPTIVE'] = {'label': '0:MEAN_C / 1:GAUSSIAN_C',
                                 'from_': cv2.ADAPTIVE_THRESH_MEAN_C, 'to': cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                 'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
-        self.scale_adaptive = tk.Scale(self.topframe, controls['ADAPTIVE'])
+        self.scale_adaptive = tk.Scale(self.top_frame, controls['ADAPTIVE'])
         self.scale_adaptive.pack()
 
         controls['THRESHOLDTYPE'] = {'label': '0:BINARY / 1:INV',
                                      'from_': cv2.THRESH_BINARY, 'to': cv2.THRESH_BINARY_INV,
                                      'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
-        self.scale_thresholdType = tk.Scale(self.topframe, controls['THRESHOLDTYPE'])
+        self.scale_thresholdType = tk.Scale(self.top_frame, controls['THRESHOLDTYPE'])
         self.scale_thresholdType.pack()
         # initial stepvalue 3.
         controls['BLOCKSIZE'] = {'label': 'blocksize', 'from_': 3, 'to': 255,
                                  'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
-        self.scale_blocksize = tk.Scale(self.topframe, controls['BLOCKSIZE'])
+        self.scale_blocksize = tk.Scale(self.top_frame, controls['BLOCKSIZE'])
         self.scale_blocksize.pack()
         controls['C'] = {'label': 'c', 'from_': 0, 'to': 255,
                          'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
-        self.scale_c = tk.Scale(self.topframe, controls['C'])
+        self.scale_c = tk.Scale(self.top_frame, controls['C'])
         self.scale_c.pack()
 
         self.scale_reset()
 
     def command_frame(self):
-        self.command_frame = tk.Frame(self.aside)
+        self.command_frame = tk.Frame(self.a_side)
         self.button_reset = tk.Button(self.command_frame, text='RESET', command=self.scale_reset)
         self.button_reset.pack()
         self.command_frame.pack()
@@ -309,12 +309,10 @@ class Application(tk.Frame):
         return 255, self.scale_adaptive.get(), self.scale_thresholdType.get(), self.scale_blocksize.get(), self.scale_c.get()
 
     def output_frame(self):
-        self.output_frame = tk.LabelFrame(self.aside, text='output')
-        #self.output_frame.grid(row=0, column=1)
-        #self.output_frame.grid(row=1, column=0)
+        self.output_frame = tk.LabelFrame(self.a_side, text='output')
         self.output_frame.pack(side=tk.TOP, fill=tk.Y)
-        self.message = tk.Label(self.output_frame, text='Select a row and CTRL+C\nCopy it to the clipboard.')
-        self.message.pack()
+        self.label_message = tk.Label(self.output_frame, text='Select a row and Ctrl+C\nCopy it to the clipboard.')
+        self.label_message.pack()
 
         class ScrollListBox(tk.Listbox):
             def __init__(self, master=None, cnf={}, **kw):
@@ -331,17 +329,15 @@ class Application(tk.Frame):
         self.command_frame()
         self.output_frame()
 
-        self.image_panel = tk.Label(self.main_side, text='CTRL+S…Image Save Dialog')
-        self.image_panel.grid(row=0, column=0)
-        self.txtfile_name = tk.Entry(self.main_side, textvariable=self.var_file_name)
-        self.txtfile_name.grid(row=0, column=1)
-        self.lblimage = tk.Label(self.main_side)
-        self.lblimage.grid(row=1, columnspan=2)
-        #self.lblimage.grid(row=0, column=1)
-        #self.lblimage.grid(row=1, columnspan=2)
+        self.message_panel = tk.Label(self.main_side, text='Ctrl+S…Image Save Dialog')
+        self.message_panel.pack(side=tk.TOP, fill=tk.Y)
+        self.entry_filename = tk.Entry(self.main_side, textvariable=self.var_file_name)
+        self.entry_filename.pack(side=tk.TOP, fill=tk.Y)
+        self.label_image = tk.Label(self.main_side)
+        self.label_image.pack(side=tk.TOP, fill=tk.Y)
 
     def draw(self, event):
-        print(event)
+        #print(event)
         params = self.get_params()
         max_value, adaptive_method, threshold_type, block_size, c = params
         # adaptiveThreshold params check
@@ -375,13 +371,13 @@ class Application(tk.Frame):
         self.var_file_name.set(p.name)
         self.__change_image(self.data.gray_scale)
         # 画像を変更時にオリジナルとグレースケール画像も更新
-        self.toggle_changed(param=ImageType.COLOR)
-        self.toggle_changed(param=ImageType.GRAY_SCALE)
+        self.toggle_changed(sender=self.color_image)
+        self.toggle_changed(sender=self.gray_scale_image)
 
     def __change_image(self, src):
-        self.lblimage.np = src
-        self.lblimage.src = ImageTk.PhotoImage(Image.fromarray(src))
-        self.lblimage.configure(image=self.lblimage.src)
+        self.label_image.np = src
+        self.label_image.src = ImageTk.PhotoImage(Image.fromarray(src))
+        self.label_image.configure(image=self.label_image.src)
 
 
 def main():
@@ -389,7 +385,7 @@ def main():
     #input_file = r'../images/桜_768-512.jpg'
     parser = ArgumentParser(prog=PROGRAM_NAME, description='AdaptiveThreshold Simulator')
     parser.add_argument('input_file', metavar=None, nargs='?', default=input_file)
-    parser.add_argument('--version', action='version', version='%(prog)s 0.0.3')
+    parser.add_argument('--version', action='version', version='%(prog)s {0}'.format(__version__))
     args = parser.parse_args()
     logger.info('args:{0}'.format(args))
     
