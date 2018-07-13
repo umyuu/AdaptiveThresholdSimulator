@@ -163,9 +163,12 @@ class Application(tk.Frame):
         self.menu_bar = self.create_menubar()
         self.master.configure(menu=self.menu_bar)
         self.create_widgets()
-
-        self.a_side.pack(side=tk.LEFT)
-        self.main_side.pack(side=tk.LEFT, fill=tk.Y)
+        self.a_side.grid(column=0,row=0, sticky=tk.W)
+        self.main_side.grid(column=1, row=0, sticky=tk.W)
+        #self.a_side.pack(side=tk.LEFT)
+        #self.main_side.pack(side=tk.LEFT, fill=tk.Y)
+        #self.a_side.pack(side=tk.LEFT)
+        #self.main_side.pack(side=tk.LEFT, fill=tk.Y)
 
     def create_menubar(self) -> tk.Menu:
         """
@@ -311,8 +314,10 @@ class Application(tk.Frame):
     def output_frame(self):
         self.output_frame = tk.LabelFrame(self.a_side, text='output')
         self.output_frame.pack(side=tk.TOP, fill=tk.Y)
+
+        #self.label_message = tk.Message(self.output_frame, text='Select a row and Ctrl+C\nCopy it to the clipboard.', width=200)
         self.label_message = tk.Label(self.output_frame, text='Select a row and Ctrl+C\nCopy it to the clipboard.')
-        self.label_message.pack()
+        self.label_message.pack(expand=True,side=tk.TOP,fill=tk.X)
 
         class ScrollListBox(tk.Listbox):
             def __init__(self, master=None, cnf={}, **kw):
