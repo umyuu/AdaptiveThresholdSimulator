@@ -5,7 +5,7 @@ Adaptive Threshold Simulator
 Python cv2.adaptiveThreshold function parameter Simulator.
 
 GUI widget: tkinter
-
+![AdaptiveThresholdSimulator](docs/dialog.png)
 ## Install
 1. [download a ZIP](https://github.com/umyuu/AdaptiveThresholdSimulator/archive/master.zip) file.
 2. Install dependencies.
