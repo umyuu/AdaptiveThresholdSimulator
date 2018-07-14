@@ -1,5 +1,5 @@
 cd ..\src
 
 python -m cProfile -o ..\pref\program.prof adaptiveThreshold.py
-snakeviz ..\pref\program.prof
+python C:\Users\%USERNAME%\AppData\Roaming\Python\Python36\Scripts\snakeviz.exe ..\pref\program.prof
 TIMEOUT 30

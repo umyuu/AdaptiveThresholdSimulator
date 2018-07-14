@@ -1,8 +1,0 @@
-1,imread。
-  ◇np.fromfile & cv2.imdecode
-    imread:18:7.5625
-    imread:19:7.640625
-  ◇np.asarray & cv2.imdecode
-    imread:8:6.71875
-    imread:9:6.796875
-  →0.8秒とほぼ変わらず
