@@ -3,6 +3,7 @@
     AdaptiveThreshold
 """
 import asyncio
+from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 from collections import deque
 from datetime import datetime
 from functools import partial
@@ -29,16 +30,9 @@ LOGGER.setLevel(DEBUG)
 LOGGER.addHandler(HANDLER)
 
 # get_event_loopではなくnew_event_loop
+# contextlib.closingを使う。
 LOOP = asyncio.new_event_loop()
-
-
-async def hello_world():
-    print("Hello World!")
-
-
-
-LOOP.run_until_complete(hello_world())
-
+LOOP.set_default_executor(PoolExecutor(8))
 
 def stopWatch():
     from time import process_time
@@ -57,6 +51,12 @@ def stopWatch():
 ct = stopWatch()
 
 
+def read_file(file_name : str):
+    p = Path(file_name)
+    with p.open('rb') as file:
+        return file.read()
+
+
 class ImageData(object):
     """
         cv2.adaptiveThresholdの元データに使用するグレースケール画像を管理する。
@@ -66,10 +66,11 @@ class ImageData(object):
         :param file_name: 画像ファイル名
         """
         self.__file_name = file_name
-        task = LOOP.create_task(ImageData.imread(file_name, cv2.IMREAD_GRAYSCALE))
-        self.__gray_scale = LOOP.run_until_complete(task)
+        #file_name ='a'
+        self.__gray_scale = None
+        # スケジューリング
+        self.task = LOOP.create_task(ImageData.imread(file_name, cv2.IMREAD_GRAYSCALE))
         #self.__gray_scale = ImageData.imread(file_name, cv2.IMREAD_GRAYSCALE)
-        assert self.gray_scale is not None, 'cannot open file as image.'
 
     @staticmethod
     async def imread(file_name: str, flags: int = cv2.IMREAD_COLOR):
@@ -86,9 +87,9 @@ class ImageData(object):
         image = None
         try:
             ct()
-            with open(file_name, 'rb') as file:
-                buffer = np.asarray(bytearray(file.read()), dtype=np.uint8)
-                image = cv2.imdecode(buffer, flags)
+            val = await LOOP.run_in_executor(None, partial(read_file, file_name))
+            buffer = np.asarray(bytearray(val), dtype=np.uint8)
+            image = cv2.imdecode(buffer, flags)
             ct()
         except FileNotFoundError as ex:
             # cv2.imread compatible
@@ -138,6 +139,8 @@ class ImageData(object):
         """
             グレースケール画像(np.array)
         """
+        self.__gray_scale = LOOP.run_until_complete(self.task)
+        assert self.__gray_scale is not None, 'cannot open file as image.'
         return self.__gray_scale
 
 
@@ -242,6 +245,7 @@ class ImageWindow(tk.Toplevel):
         """
         self.__var = value
 
+
 class Application(tk.Frame):
     """
         Main Window
@@ -328,12 +332,20 @@ class Application(tk.Frame):
                                  'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         self.scale_blocksize = tk.Scale(self.top_frame, controls['BLOCKSIZE'])
         self.scale_blocksize.pack()
+        #controls['C'] = {'label': 'c', 'from_': 0, 'to': 255,
+        #                 'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         controls['C'] = {'label': 'c', 'from_': 0, 'to': 255,
-                         'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
+                         'length': 300, 'orient': tk.HORIZONTAL}
         self.scale_c = tk.Scale(self.top_frame, controls['C'])
         self.scale_c.pack()
 
         self.scale_reset()
+
+
+        self.scale_c.configure(command=self.draw)
+
+
+
 
     def create_output_frame(self):
         """
@@ -549,6 +561,21 @@ class Application(tk.Frame):
         self.toggle_changed(sender=self.color_image)
         self.toggle_changed(sender=self.gray_scale_image)
 
+    def load_imagA(self, data : ImageData):
+        """
+            画像を読み込み、画面に表示
+        """
+        p = Path(data.file_name)
+        LOGGER.info('load file:%s', p.name)
+        self.data = data
+        self.var_file_name.set(p.name)
+        self.var_creation_time.set(datetime.fromtimestamp(p.lstat().st_ctime))
+        # ToDo self.draw(None)が処理としては正しい、ただし、draw関数内のエラーチェックがあるため、考慮する必要あり
+        # save_filedialog内でself.draw(None)を呼び出している点も留意
+        WidgetUtils.set_image(self.label_image, self.data.gray_scale)
+        # 画像を変更時にオリジナルとグレースケール画像も更新
+        self.toggle_changed(sender=self.color_image)
+        self.toggle_changed(sender=self.gray_scale_image)
 
 def main():
     """
@@ -563,14 +590,14 @@ def main():
     parser.add_argument('--version', action='version', version='%(prog)s {0}'.format(__version__))
     args = parser.parse_args()
     LOGGER.info('args:%s', args)
-
-
+    #
+    data = ImageData(args.input_file)
 
     ct()
     app = Application()
     print('#' *30)
     ct()
-    app.load_image(args.input_file)
+    app.load_imagA(data)
     ct()
     app.pack(expand=True, fill=tk.BOTH)
     ct()
