@@ -2,10 +2,11 @@
 """
     AdaptiveThreshold
 """
-from argparse import ArgumentParser
+import asyncio
 from collections import deque
 from datetime import datetime
 from functools import partial
+
 from logging import getLogger, DEBUG, StreamHandler
 from pathlib import Path
 import sys
@@ -27,21 +28,51 @@ LOGGER = getLogger(PROGRAM_NAME)
 LOGGER.setLevel(DEBUG)
 LOGGER.addHandler(HANDLER)
 
+# get_event_loopではなくnew_event_loop
+LOOP = asyncio.new_event_loop()
+
+
+async def hello_world():
+    print("Hello World!")
+
+
+
+LOOP.run_until_complete(hello_world())
+
+
+def stopWatch():
+    from time import process_time
+    from traceback import extract_stack
+    from itertools import count
+    c = count()
+
+    def step():
+        func_name = extract_stack(None, 2)[0][2]
+        n = next(c)
+        print('{0}:{1}:{2}'.format(func_name, n, process_time()))
+
+    return step
+
+
+ct = stopWatch()
+
 
 class ImageData(object):
     """
-        カラー画像/グレースケール画像を管理
+        cv2.adaptiveThresholdの元データに使用するグレースケール画像を管理する。
     """
     def __init__(self, file_name: str):
+        """
+        :param file_name: 画像ファイル名
+        """
         self.__file_name = file_name
-        self.__color = ImageData.imread(file_name)
-        assert self.color is not None, 'cannot open file as image.'
-        self.__gray_scale = cv2.cvtColor(self.color, cv2.COLOR_BGRA2GRAY)
-        ids = [id(self.color), id(self.gray_scale)]
-        assert len(ids) == len(set(ids)), 'Shallow Copy'
+        task = LOOP.create_task(ImageData.imread(file_name, cv2.IMREAD_GRAYSCALE))
+        self.__gray_scale = LOOP.run_until_complete(task)
+        #self.__gray_scale = ImageData.imread(file_name, cv2.IMREAD_GRAYSCALE)
+        assert self.gray_scale is not None, 'cannot open file as image.'
 
     @staticmethod
-    def imread(file_name: str, flags: int = cv2.IMREAD_COLOR):
+    async def imread(file_name: str, flags: int = cv2.IMREAD_COLOR):
         """
         Unicode Path/Filename for imread Not supported.
         @see https://github.com/opencv/opencv/issues/4292
@@ -54,12 +85,14 @@ class ImageData(object):
         """
         image = None
         try:
+            ct()
             with open(file_name, 'rb') as file:
                 buffer = np.asarray(bytearray(file.read()), dtype=np.uint8)
                 image = cv2.imdecode(buffer, flags)
+            ct()
         except FileNotFoundError as ex:
             # cv2.imread compatible
-            LOGGER.error(ex)
+            LOGGER.exception(ex)
         return image
 
     @staticmethod
@@ -80,7 +113,7 @@ class ImageData(object):
                 buf.tofile(f)
             return True
         except IOError as ex:
-            LOGGER.error(ex)
+            LOGGER.exception(ex)
         return False
 
     @property
@@ -94,8 +127,11 @@ class ImageData(object):
     def color(self):
         """
             カラー画像(np.array)
+
         """
-        return self.__color
+        task = LOOP.create_task(ImageData.imread(self.file_name))
+        return LOOP.run_until_complete(task)
+        #return ImageData.imread(self.file_name)
 
     @property
     def gray_scale(self):
@@ -141,10 +177,20 @@ class WidgetUtils(object):
         """
         assert img is not None
         # 出力画像用
+        ct()
         widget.np = img
+        ct()
         # GC対象にならないように参照を保持する。
-        widget.src = ImageTk.PhotoImage(Image.fromarray(img))
+        ct()
+        al = Image.fromarray(img)
+        #time_t('set_image 4')
+
+        #retval, buf = cv2.imencode('.ppm', img)
+        #widget.src = buf
+        widget.src = ImageTk.PhotoImage(al)
+        ct()
         widget.configure(image=widget.src)
+        ct()
 
 
 class ImageWindow(tk.Toplevel):
@@ -155,18 +201,21 @@ class ImageWindow(tk.Toplevel):
         if cnf is None:
             cnf = {}
         super().__init__(master, cnf, **kw)
-        self.protocol('WM_DELETE_WINDOW',
-                      partial(WidgetUtils.set_visible, widget=self, visible=False))
+        self.protocol('WM_DELETE_WINDOW', self.on_window_exit)
         self.__label_image = tk.Label(self)
         self.__label_image.pack()
         self.__tag = None
-        self.set_image = lambda x: WidgetUtils.set_image(self.__label_image, x)
+        self.__var = None
 
-    #def set_image(self, img):
-    #    WidgetUtils.set_image(self.__label_image, img)
+    def on_window_exit(self):
+        WidgetUtils.set_visible(self, False)
+        self.var.set(False)
+
+    def set_image(self, img):
+        WidgetUtils.set_image(self.__label_image, img)
 
     @property
-    def tag(self) ->int:
+    def tag(self) -> int:
         """
             タグ(Getter)
         """
@@ -179,6 +228,19 @@ class ImageWindow(tk.Toplevel):
         """
         self.__tag = value
 
+    @property
+    def var(self) -> tk.BooleanVar:
+        """
+            タグ(Getter)
+        """
+        return self.__var
+
+    @var.setter
+    def var(self, value: tk.BooleanVar):
+        """
+            タグ(Setter)
+        """
+        self.__var = value
 
 class Application(tk.Frame):
     """
@@ -200,8 +262,10 @@ class Application(tk.Frame):
         #
         self.color_image = ImageWindow(self)
         self.color_image.tag = 0
+        self.color_image.var = self.var_original
         self.gray_scale_image = ImageWindow(self)
         self.gray_scale_image.tag = 1
+        self.gray_scale_image.var = self.var_gray_scale
         self.history = deque(maxlen=12)
         self.menu_bar = self.create_menubar()
         self.master.configure(menu=self.menu_bar)
@@ -365,7 +429,7 @@ class Application(tk.Frame):
         :param toggle True…チェックボックスのトグル処理を行う。Falseはしない。
         :return:
         """
-        assert sender, 'toggle_changed:{0}'.format(sender)
+        assert isinstance(sender, ImageWindow), 'toggle_changed:{0}'.format(sender)
         # Menu Visible
         checked = [self.var_original, self.var_gray_scale]
         var = checked[sender.tag]
@@ -375,6 +439,7 @@ class Application(tk.Frame):
         if visible:
             img = None
             if sender.tag == 0:
+                # opencv (BGR)→(RGB)に変換
                 img = cv2.cvtColor(self.data.color, cv2.COLOR_BGRA2RGB)
             elif sender.tag == 1:
                 img = self.data.gray_scale
@@ -399,12 +464,13 @@ class Application(tk.Frame):
                                                filetypes=IMAGE_FILE_TYPES)
         if not file_path:  # isEmpty
             return
-        import time
-        print(time.process_time())
+
+        ct()
         self.load_image(file_path)
-        print(time.process_time())
+        ct()
         self.draw(None)
-        print(time.process_time())
+        ct()
+
 
     def save_filedialog(self, event=None):
         """
@@ -452,6 +518,7 @@ class Application(tk.Frame):
             return
         try:
             # グレースケール画像を2値化
+            ct()
             result = cv2.adaptiveThreshold(self.data.gray_scale, *params)
             insert_str = 'ret = cv2.adaptiveThreshold(src, {0})'.format(', '.join(map(str, params)))
             # 先頭に追加
@@ -459,9 +526,11 @@ class Application(tk.Frame):
             self.listbox.delete(0, tk.END)
             for text in self.history:
                 self.listbox.insert(tk.END, text)
+            ct()
             WidgetUtils.set_image(self.label_image, result)
+            ct()
         except BaseException as ex:
-            LOGGER.error(ex)
+            LOGGER.exception(ex)
 
     def load_image(self, file_path: str):
         """
@@ -484,7 +553,9 @@ class Application(tk.Frame):
 def main():
     """
         Entry Point
+        画像イメージを非同期で読み込む
     """
+    from argparse import ArgumentParser
     input_file = r'../images/kodim07.png'
     #input_file = r'../images/桜_768-512.jpg'
     parser = ArgumentParser(prog=PROGRAM_NAME, description='AdaptiveThreshold Simulator')
@@ -493,10 +564,18 @@ def main():
     args = parser.parse_args()
     LOGGER.info('args:%s', args)
 
+
+
+    ct()
     app = Application()
+    print('#' *30)
+    ct()
     app.load_image(args.input_file)
+    ct()
     app.pack(expand=True, fill=tk.BOTH)
+    ct()
     app.mainloop()
+    LOOP.close()
 
 
 if __name__ == "__main__":
