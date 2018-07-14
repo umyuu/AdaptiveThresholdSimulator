@@ -314,38 +314,34 @@ class Application(tk.Frame):
         controls = dict()
         self.top_frame = tk.LabelFrame(self.a_side, text='params')
         self.top_frame.pack(anchor=tk.NW)
-
         controls['ADAPTIVE'] = {'label': '0:MEAN_C / 1:GAUSSIAN_C',
                                 'from_': cv2.ADAPTIVE_THRESH_MEAN_C,
                                 'to': cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
+                                'length': 300, 'orient': tk.HORIZONTAL}
         self.scale_adaptive = tk.Scale(self.top_frame, controls['ADAPTIVE'])
         self.scale_adaptive.pack()
-
         controls['THRESHOLDTYPE'] = {'label': '0:BINARY / 1:INV',
                                      'from_': cv2.THRESH_BINARY, 'to': cv2.THRESH_BINARY_INV,
-                                     'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
+                                     'length': 300, 'orient': tk.HORIZONTAL}
         self.scale_threshold_type = tk.Scale(self.top_frame, controls['THRESHOLDTYPE'])
         self.scale_threshold_type.pack()
         # initial stepvalue 3.
         controls['BLOCKSIZE'] = {'label': 'blocksize', 'from_': 3, 'to': 255,
-                                 'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
+                                 'length': 300, 'orient': tk.HORIZONTAL}
         self.scale_blocksize = tk.Scale(self.top_frame, controls['BLOCKSIZE'])
         self.scale_blocksize.pack()
-        #controls['C'] = {'label': 'c', 'from_': 0, 'to': 255,
-        #                 'length': 300, 'orient': tk.HORIZONTAL, 'command': self.draw}
         controls['C'] = {'label': 'c', 'from_': 0, 'to': 255,
                          'length': 300, 'orient': tk.HORIZONTAL}
         self.scale_c = tk.Scale(self.top_frame, controls['C'])
         self.scale_c.pack()
 
         self.scale_reset()
-
-
+        # コマンドの登録処理
+        # この位置で登録するのは self.draw イベントの発生を抑止するため。
+        self.scale_adaptive.configure(command=self.draw)
+        self.scale_threshold_type.configure(command=self.draw)
+        self.scale_blocksize.configure(command=self.draw)
         self.scale_c.configure(command=self.draw)
-
-
-
 
     def create_output_frame(self):
         """
@@ -601,6 +597,7 @@ def main():
     ct()
     app.pack(expand=True, fill=tk.BOTH)
     ct()
+    app.draw(None)
     app.mainloop()
     LOOP.close()
 
