@@ -379,7 +379,6 @@ class Application(tk.Frame):
 
         self.listbox = ScrollListBox(self.output_frame, width=40, height=self.history.maxlen)
 
-
     def create_menubar(self) -> tk.Menu:
         """
         MenuBarの作成
@@ -578,23 +577,25 @@ async def appA():
     #return await LOOP.run_in_executor(None, aaaa)
 
 
+def parse_args(args:list):
+    """
+        コマンドライン引数の解析
+    """
+    input_file = r'../images/kodim07.png'
+    # input_file = r'../images/桜_768-512.jpg'
+    from argparse import ArgumentParser
+    parser = ArgumentParser(prog=PROGRAM_NAME, description='AdaptiveThreshold Simulator')
+    parser.add_argument('input_file', metavar=None, nargs='?', default=input_file)
+    parser.add_argument('--version', action='version', version='%(prog)s {0}'.format(__version__))
+    return parser.parse_args(args)
 
-
-def main(EntryPoint=False):
+def main(entry_point=False):
     """
         Entry Point
         画像イメージを非同期で読み込む
     """
-    def parse_args(args):
-        input_file = r'../images/kodim07.png'
-        # input_file = r'../images/桜_768-512.jpg'
-        from argparse import ArgumentParser
-        parser = ArgumentParser(prog=PROGRAM_NAME, description='AdaptiveThreshold Simulator')
-        parser.add_argument('input_file', metavar=None, nargs='?', default=input_file)
-        parser.add_argument('--version', action='version', version='%(prog)s {0}'.format(__version__))
-        return parser.parse_args(args)
     argv = sys.argv[1:]
-    if not EntryPoint:
+    if not entry_point:
         argv.pop()
     args = parse_args(argv)
     LOGGER.info('args:%s', args)
@@ -634,7 +635,7 @@ def main(EntryPoint=False):
     def finish():
         return ct()
 
-    if EntryPoint:
+    if entry_point:
         app.after(0, finish)
         app.mainloop()
     else:
