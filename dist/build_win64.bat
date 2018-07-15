@@ -6,7 +6,7 @@ $dist_dir = Join-Path $base_dir "\dist"
 Set-Location -path $dist_dir
 
 $param_json_file = Join-Path $args "params.json"
-$target_path = Join-Path $base_dir "src\adaptivethreshold.py"
+$target_path = Join-Path $base_dir "src\simulator.py"
 Write-Host $base_dir
 Write-Host $target_path
 [string[]]$args_list = @($target_path, "--onefile", "--noconsole", "--distpath=./win", "--log-level DEBUG")

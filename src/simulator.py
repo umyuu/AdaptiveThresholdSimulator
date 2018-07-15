@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-    AdaptiveThreshold
+    AdaptiveThreshold Simulator
 """
 import asyncio
 from concurrent.futures import ThreadPoolExecutor as PoolExecutor

@@ -2,7 +2,7 @@
 """
     unittest
 """
-from src.adaptivethreshold import main
+from src.simulator import main
 
 
 def test_pref_startup():
