@@ -17,9 +17,9 @@ import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import filedialog
 # library
-import numpy as np
+from numpy import asarray, uint8
 import cv2
-from PIL import Image, ImageTk
+
 
 PROGRAM_NAME = 'AdaptiveThreshold'
 __version__ = '0.0.4'
@@ -84,7 +84,6 @@ class ImageData(object):
 
         import time
         time.sleep(0)
-        #self.__gray_scale = ImageData.imread(file_name, cv2.IMREAD_GRAYSCALE)
 
     @staticmethod
     async def imread(file_name: str, flags: int = cv2.IMREAD_COLOR):
@@ -102,7 +101,7 @@ class ImageData(object):
         try:
             ct()
             val = await LOOP.run_in_executor(None, partial(read_file, file_name))
-            buffer = np.asarray(bytearray(val), dtype=np.uint8)
+            buffer = asarray(bytearray(val), dtype=uint8)
             image = cv2.imdecode(buffer, flags)
             ct()
         except FileNotFoundError as ex:
@@ -121,15 +120,29 @@ class ImageData(object):
         """
         try:
             p = Path(file_name)
-            retval, buf = cv2.imencode(p.suffix, image, params)
-            if not retval:
-                return retval
+            ret_val, buf = cv2.imencode(p.suffix, image, params)
+            assert ret_val, 'imencode failure'
             with p.open('wb') as out:
                 buf.tofile(out)
             return True
         except IOError as ex:
             LOGGER.exception(ex)
         return False
+
+    @staticmethod
+    def imencode(image, flags: int):
+        """
+        読み込んだ画像データをPGMまたはPPM形式にエンコードする。
+        :param image:
+        :param flags:
+        :return:
+        """
+        table = {cv2.IMREAD_GRAYSCALE: '.PGM', cv2.IMREAD_COLOR: '.PPM'}
+        ext = table.get(flags)
+        assert ext
+        ret_val, enc_img = cv2.imencode(ext, image, None)
+        assert ret_val, 'imencode failure'
+        return enc_img.tobytes()
 
     @property
     def file_name(self) -> str:
@@ -185,7 +198,7 @@ class WidgetUtils(object):
             widget.withdraw()
 
     @staticmethod
-    def set_image(widget: tk.Widget, img) -> None:
+    def set_image(widget: tk.Widget, img, read_mode : int) -> None:
         """
             画像の更新を行う。
         """
@@ -194,12 +207,13 @@ class WidgetUtils(object):
         widget.np = img
 
         ct()
-        al = Image.fromarray(img)
+        #al = Image.fromarray(img)
         #time_t('set_image 4')
         #retval, buf = cv2.imencode('.ppm', img)
         #widget.src = buf
         # GC対象にならないように参照を保持する。
-        widget.src = ImageTk.PhotoImage(al)
+        widget.src = tk.PhotoImage(data=ImageData.imencode(img, read_mode))
+        #widget.src = ImageTk.PhotoImage(al)
         ct()
         widget.configure(image=widget.src)
         ct()
@@ -225,8 +239,8 @@ class ImageWindow(tk.Toplevel):
         WidgetUtils.set_visible(self, False)
         self.var.set(False)
 
-    def set_image(self, img):
-        WidgetUtils.set_image(self.__label_image, img)
+    def set_image(self, img, read_mode : int):
+        WidgetUtils.set_image(self.__label_image, img, read_mode)
 
     @property
     def tag(self) -> int:
@@ -257,6 +271,11 @@ class ImageWindow(tk.Toplevel):
         self.__var = value
 
 
+class SplashScreen(tk.Frame):
+    def __init__(self):
+        pass
+
+
 class Application(tk.Frame):
     """
         Main Window
@@ -276,10 +295,10 @@ class Application(tk.Frame):
         self.var_gray_scale = tk.BooleanVar(value=False)
         #
         self.color_image = ImageWindow(self)
-        self.color_image.tag = 0
+        self.color_image.tag = cv2.IMREAD_COLOR
         self.color_image.var = self.var_original
         self.gray_scale_image = ImageWindow(self)
-        self.gray_scale_image.tag = 1
+        self.gray_scale_image.tag = cv2.IMREAD_GRAYSCALE
         self.gray_scale_image.var = self.var_gray_scale
         self.history = deque(maxlen=12)
         self.menu_bar = self.create_menubar()
@@ -448,19 +467,21 @@ class Application(tk.Frame):
         """
         assert isinstance(sender, ImageWindow), 'toggle_changed:{0}'.format(sender)
         # Menu Visible
-        checked = [self.var_original, self.var_gray_scale]
+        checked = [self.var_gray_scale, self.var_original]
         var = checked[sender.tag]
         if toggle:
             var.set(not var.get())
         visible = var.get()
         if visible:
             img = None
-            if sender.tag == 0:
-                # opencv (BGR)→(RGB)に変換
-                img = cv2.cvtColor(self.data.color, cv2.COLOR_BGRA2RGB)
-            elif sender.tag == 1:
+            if sender.tag == cv2.IMREAD_GRAYSCALE:
                 img = self.data.gray_scale
-            sender.set_image(img)
+            elif sender.tag == cv2.IMREAD_COLOR:
+                # opencv (BGR)→(RGB)に変換
+                #img = cv2.cvtColor(self.data.color, cv2.COLOR_BGRA2RGB)
+                img = self.data.color
+                pass
+            sender.set_image(img, sender.tag)
 
         WidgetUtils.set_visible(sender, visible)
 
@@ -543,7 +564,7 @@ class Application(tk.Frame):
             for text in self.history:
                 self.listbox.insert(tk.END, text)
             ct()
-            WidgetUtils.set_image(self.label_image, result)
+            WidgetUtils.set_image(self.label_image, result, cv2.IMREAD_GRAYSCALE)
             ct()
         except BaseException as ex:
             LOGGER.exception(ex)
@@ -560,7 +581,7 @@ class Application(tk.Frame):
         if redraw:
             # self.draw(None)のエラーチェック条件に一致するとメインウィンドウの画像が更新されない。
             # そのため、こちらで更新する。
-            WidgetUtils.set_image(self.label_image, self.data.gray_scale)
+            WidgetUtils.set_image(self.label_image, self.data.gray_scale, cv2.IMREAD_GRAYSCALE)
             # 画像を変更時にオリジナルとグレースケール画像も更新
             self.toggle_changed(sender=self.color_image)
             self.toggle_changed(sender=self.gray_scale_image)
@@ -589,14 +610,18 @@ def parse_args(args:list):
     parser.add_argument('--version', action='version', version='%(prog)s {0}'.format(__version__))
     return parser.parse_args(args)
 
+
 def main(entry_point=False):
     """
         Entry Point
         画像イメージを非同期で読み込む
     """
     argv = sys.argv[1:]
-    if not entry_point:
+    if entry_point:
+        pass
+    else:
         argv.pop()
+
     args = parse_args(argv)
     LOGGER.info('args:%s', args)
     #
@@ -641,6 +666,7 @@ def main(entry_point=False):
     else:
         return finish()
     LOOP.close()
+
 
 if __name__ == "__main__":
     main(True)

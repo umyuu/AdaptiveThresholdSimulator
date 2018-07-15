@@ -15,7 +15,6 @@ GUI widget: tkinter
 - python 3.5+
 - opencv3
 - Numpy
-- Pillow
 
 ## Using
 
