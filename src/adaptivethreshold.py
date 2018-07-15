@@ -37,25 +37,29 @@ LOOP = asyncio.get_event_loop()
 asyncio.set_event_loop(LOOP)
 LOOP.set_default_executor(PoolExecutor(8))
 
-def stopWatch():
-    from time import process_time
+
+def stop_watch():
+    from time import perf_counter
     from traceback import extract_stack
     from itertools import count
+    start_time = perf_counter()
     c = count()
 
     def step():
         func_name = extract_stack(None, 2)[0][2]
         n = next(c)
-        LOGGER.debug('{0}:{1}:{2}'.format(func_name, n, process_time()))
-        #print('{0}:{1}:{2}'.format(func_name, n, process_time()))
+        end_time = perf_counter()
+        MSG = [func_name, n, end_time]
+        LOGGER.debug(MSG)
+        return MSG, end_time - start_time
 
     return step
 
 
-ct = stopWatch()
+ct = stop_watch()
 
 
-def read_file(file_name : str):
+def read_file(file_name: str):
     p = Path(file_name)
     with p.open('rb') as file:
         return file.read()
@@ -120,8 +124,8 @@ class ImageData(object):
             retval, buf = cv2.imencode(p.suffix, image, params)
             if not retval:
                 return retval
-            with p.open('wb') as f:
-                buf.tofile(f)
+            with p.open('wb') as out:
+                buf.tofile(out)
             return True
         except IOError as ex:
             LOGGER.exception(ex)
@@ -574,18 +578,25 @@ async def appA():
     #return await LOOP.run_in_executor(None, aaaa)
 
 
-def main():
+
+
+def main(EntryPoint=False):
     """
         Entry Point
         画像イメージを非同期で読み込む
     """
-    from argparse import ArgumentParser
-    input_file = r'../images/kodim07.png'
-    #input_file = r'../images/桜_768-512.jpg'
-    parser = ArgumentParser(prog=PROGRAM_NAME, description='AdaptiveThreshold Simulator')
-    parser.add_argument('input_file', metavar=None, nargs='?', default=input_file)
-    parser.add_argument('--version', action='version', version='%(prog)s {0}'.format(__version__))
-    args = parser.parse_args()
+    def parse_args(args):
+        input_file = r'../images/kodim07.png'
+        # input_file = r'../images/桜_768-512.jpg'
+        from argparse import ArgumentParser
+        parser = ArgumentParser(prog=PROGRAM_NAME, description='AdaptiveThreshold Simulator')
+        parser.add_argument('input_file', metavar=None, nargs='?', default=input_file)
+        parser.add_argument('--version', action='version', version='%(prog)s {0}'.format(__version__))
+        return parser.parse_args(args)
+    argv = sys.argv[1:]
+    if not EntryPoint:
+        argv.pop()
+    args = parse_args(argv)
     LOGGER.info('args:%s', args)
     #
     data = ImageData(args.input_file)
@@ -619,11 +630,18 @@ def main():
     app.pack(expand=True, fill=tk.BOTH)
     ct()
     app.draw(None)
-    app.mainloop()
+
+    def finish():
+        return ct()
+
+    if EntryPoint:
+        app.after(0, finish)
+        app.mainloop()
+    else:
+        return finish()
     LOOP.close()
 
-
 if __name__ == "__main__":
-    main()
+    main(True)
     #loop = asyncio.get_event_loop()
     #loop.run_until_complete(main())

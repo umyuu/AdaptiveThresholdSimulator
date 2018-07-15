@@ -102,3 +102,9 @@ ENV/
 
 # 
 .idea/
+
+# Add
+# Visual Studio
+.vs/
+# pytest cache
+.pytest_cache/

@@ -20,7 +20,7 @@ GUI widget: tkinter
 ## Using
 
 ```
-python adaptiveThreshold.py images\kodim07.png
+python adaptivethreshold.py images\kodim07.png
 ```
 
 ## Source code License
