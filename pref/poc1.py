@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
     poc 1
-    非同期画像読み込み
+    スレッドプール/プロセスプールを使用した画像読み込み
+    Blocking IO & Thread Pool.
 """
 import asyncio
 from contextlib import closing
@@ -23,6 +24,7 @@ def log(kwargs):
 
 def read_file(filename: str):
     p = Path(filename)
+    log(['begin read_file', filename])
     with p.open('rb') as f:
         time.sleep(choice([3, 5]))
         log(['end read_file', filename])
@@ -32,7 +34,9 @@ def read_file(filename: str):
 async def imread(filename : str):
     loop = asyncio.get_event_loop()
     log(['begin imread', loop.time(), filename])
-    return await loop.run_in_executor(None, partial(read_file, filename))
+    t = await loop.run_in_executor(None, partial(read_file, filename))
+    log(['end imread', loop.time(), filename])
+    return t
 
 
 async def imread2(filename : str):
@@ -53,11 +57,11 @@ async def imread2(filename : str):
 def main():
     """
         Entry Point
-        画像イメージを非同期で読み込む
     """
-    with closing(asyncio.new_event_loop()) as LOOP, PoolExecutor(2) as FileIOPool:
+    with closing(asyncio.get_event_loop()) as LOOP, PoolExecutor(2) as FileIOPool:
+        #asyncio.set_event_loop(LOOP)
         LOOP.set_debug(True)
-        LOOP.set_default_executor(FileIOPool)
+        #LOOP.set_default_executor(FileIOPool)
         log(['begin create_task', LOOP.time()])
         task1 = LOOP.create_task(imread(r'../images/kodim07.png'))
         task2 = LOOP.create_task(imread(r'../images/sakura.jpg'))
