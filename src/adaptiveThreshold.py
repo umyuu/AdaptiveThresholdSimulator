@@ -4,6 +4,7 @@
 """
 import asyncio
 from concurrent.futures import ThreadPoolExecutor as PoolExecutor
+#from concurrent.futures import ProcessPoolExecutor as PoolExecutor
 from collections import deque
 from datetime import datetime
 from functools import partial
@@ -31,7 +32,9 @@ LOGGER.addHandler(HANDLER)
 
 # get_event_loopではなくnew_event_loop
 # contextlib.closingを使う。
-LOOP = asyncio.new_event_loop()
+LOOP = asyncio.get_event_loop()
+#LOOP = asyncio.new_event_loop()
+asyncio.set_event_loop(LOOP)
 LOOP.set_default_executor(PoolExecutor(8))
 
 def stopWatch():
@@ -43,7 +46,8 @@ def stopWatch():
     def step():
         func_name = extract_stack(None, 2)[0][2]
         n = next(c)
-        print('{0}:{1}:{2}'.format(func_name, n, process_time()))
+        LOGGER.debug('{0}:{1}:{2}'.format(func_name, n, process_time()))
+        #print('{0}:{1}:{2}'.format(func_name, n, process_time()))
 
     return step
 
@@ -69,7 +73,13 @@ class ImageData(object):
         #file_name ='a'
         self.__gray_scale = None
         # スケジューリング
+        ct()
+        #self.task = asyncio.ensure_future(ImageData.imread(file_name, cv2.IMREAD_GRAYSCALE),loop=LOOP)
         self.task = LOOP.create_task(ImageData.imread(file_name, cv2.IMREAD_GRAYSCALE))
+        ct()
+
+        import time
+        time.sleep(0)
         #self.__gray_scale = ImageData.imread(file_name, cv2.IMREAD_GRAYSCALE)
 
     @staticmethod
@@ -128,11 +138,8 @@ class ImageData(object):
     def color(self):
         """
             カラー画像(np.array)
-
         """
-        task = LOOP.create_task(ImageData.imread(self.file_name))
-        return LOOP.run_until_complete(task)
-        #return ImageData.imread(self.file_name)
+        return LOOP.run_until_complete(LOOP.create_task(ImageData.imread(self.file_name)))
 
     @property
     def gray_scale(self):
@@ -180,16 +187,14 @@ class WidgetUtils(object):
         """
         assert img is not None
         # 出力画像用
-        ct()
         widget.np = img
-        ct()
-        # GC対象にならないように参照を保持する。
+
         ct()
         al = Image.fromarray(img)
         #time_t('set_image 4')
-
         #retval, buf = cv2.imencode('.ppm', img)
         #widget.src = buf
+        # GC対象にならないように参照を保持する。
         widget.src = ImageTk.PhotoImage(al)
         ct()
         widget.configure(image=widget.src)
@@ -205,6 +210,8 @@ class ImageWindow(tk.Toplevel):
             cnf = {}
         super().__init__(master, cnf, **kw)
         self.protocol('WM_DELETE_WINDOW', self.on_window_exit)
+        # packでウィンドウが表示されるので、初期表示は非表示に。
+        WidgetUtils.set_visible(self, False)
         self.__label_image = tk.Label(self)
         self.__label_image.pack()
         self.__tag = None
@@ -350,7 +357,6 @@ class Application(tk.Frame):
         self.output_frame = tk.LabelFrame(self.a_side, text='output')
         self.output_frame.pack(side=tk.TOP, fill=tk.Y)
         MSG = 'Select a row and Ctrl+C\nCopy it to the clipboard.'
-        #self.label_message = tk.Message(self.output_frame, text='Select a row and Ctrl+C\nCopy it to the clipboard.', width=200)
         self.label_message = tk.Label(self.output_frame, text=MSG)
         self.label_message.pack(expand=True, side=tk.TOP, fill=tk.X)
 
@@ -474,11 +480,10 @@ class Application(tk.Frame):
             return
 
         ct()
-        self.load_image(file_path)
+        self.load_image(ImageData(str(file_path)), True)
         ct()
         self.draw(None)
         ct()
-
 
     def save_filedialog(self, event=None):
         """
@@ -540,24 +545,7 @@ class Application(tk.Frame):
         except BaseException as ex:
             LOGGER.exception(ex)
 
-    def load_image(self, file_path: str):
-        """
-            画像を読み込み、画面に表示
-        """
-
-        p = Path(file_path)
-        LOGGER.info('load file:%s', p.name)
-        self.data = ImageData(str(p))
-        self.var_file_name.set(p.name)
-        self.var_creation_time.set(datetime.fromtimestamp(p.lstat().st_ctime))
-        # ToDo self.draw(None)が処理としては正しい、ただし、draw関数内のエラーチェックがあるため、考慮する必要あり
-        # save_filedialog内でself.draw(None)を呼び出している点も留意
-        WidgetUtils.set_image(self.label_image, self.data.gray_scale)
-        # 画像を変更時にオリジナルとグレースケール画像も更新
-        self.toggle_changed(sender=self.color_image)
-        self.toggle_changed(sender=self.gray_scale_image)
-
-    def load_imagA(self, data : ImageData):
+    def load_image(self, data: ImageData, redraw: bool=False):
         """
             画像を読み込み、画面に表示
         """
@@ -566,12 +554,25 @@ class Application(tk.Frame):
         self.data = data
         self.var_file_name.set(p.name)
         self.var_creation_time.set(datetime.fromtimestamp(p.lstat().st_ctime))
-        # ToDo self.draw(None)が処理としては正しい、ただし、draw関数内のエラーチェックがあるため、考慮する必要あり
-        # save_filedialog内でself.draw(None)を呼び出している点も留意
-        WidgetUtils.set_image(self.label_image, self.data.gray_scale)
-        # 画像を変更時にオリジナルとグレースケール画像も更新
-        self.toggle_changed(sender=self.color_image)
-        self.toggle_changed(sender=self.gray_scale_image)
+        if redraw:
+            # self.draw(None)のエラーチェック条件に一致するとメインウィンドウの画像が更新されない。
+            # そのため、こちらで更新する。
+            WidgetUtils.set_image(self.label_image, self.data.gray_scale)
+            # 画像を変更時にオリジナルとグレースケール画像も更新
+            self.toggle_changed(sender=self.color_image)
+            self.toggle_changed(sender=self.gray_scale_image)
+
+
+def aaaa(f=None):
+    #aaa = Application()
+    print(12)
+    return 12
+
+
+async def appA():
+    return 12
+    #return await LOOP.run_in_executor(None, aaaa)
+
 
 def main():
     """
@@ -588,12 +589,32 @@ def main():
     LOGGER.info('args:%s', args)
     #
     data = ImageData(args.input_file)
+    data.task.add_done_callback(aaaa)
+    #task = LOOP.create_task(appA)
+    #app = LOOP.run_until_complete(task)
+    #results = LOOP.run_until_complete(asyncio.wait_for(task, data.task))
 
+    #futures = asyncio.gather(task, data.task)
+    #print(futures)
+    count = 1
+    #while not futures.done():
+    #    print(count)
+    #    count += 1
+    #    # loop one step
+    #    LOOP.stop()
+    #    LOOP.run_forever()
+    #LOOP.run_until_complete(futures)
+    #LOOP.run_forever()
+    #bbb = LOOP.create_task(appA)
+
+    #val2 = LOOP.run_until_complete(bbb)
+    #print(val2)
+    #app = task.result()
     ct()
     app = Application()
     print('#' *30)
     ct()
-    app.load_imagA(data)
+    app.load_image(data)
     ct()
     app.pack(expand=True, fill=tk.BOTH)
     ct()
@@ -604,3 +625,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+    #loop = asyncio.get_event_loop()
+    #loop.run_until_complete(main())

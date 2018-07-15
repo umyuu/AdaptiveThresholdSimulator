@@ -58,20 +58,23 @@ def main():
     """
         Entry Point
     """
-    with closing(asyncio.get_event_loop()) as LOOP, PoolExecutor(2) as FileIOPool:
-        #asyncio.set_event_loop(LOOP)
+    with closing(asyncio.new_event_loop()) as LOOP, PoolExecutor(2) as FileIOPool:
+        asyncio.set_event_loop(LOOP)
         LOOP.set_debug(True)
         #LOOP.set_default_executor(FileIOPool)
         log(['begin create_task', LOOP.time()])
-        task1 = LOOP.create_task(imread(r'../images/kodim07.png'))
-        task2 = LOOP.create_task(imread(r'../images/sakura.jpg'))
+        #task1 = LOOP.create_task(imread(r'../images/kodim07.png'))
+        #task2 = LOOP.create_task(imread(r'../images/sakura.jpg'))
+        task1 = LOOP.create_task(imread2(r'../images/kodim07.png'))
+        #task2 = LOOP.create_task(imread2(r'../images/sakura.jpg'))
         log(['end create_task', LOOP.time()])
 
         time.sleep(3)
         log(['sleep', LOOP.time()])
 
         val1 = LOOP.run_until_complete(task1)
-        val2 = LOOP.run_until_complete(task2)
+        #val2 = LOOP.run_until_complete(task2)
+        val2 = LOOP.run_until_complete(LOOP.run_in_executor(None, partial(read_file, r'../images/sakura.jpg')))
 
         log(['Finished', LOOP.time()])
 
