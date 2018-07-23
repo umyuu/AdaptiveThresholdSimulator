@@ -17,7 +17,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import filedialog
 # library
-from numpy import asarray, uint8
+import numpy as np
 import cv2
 
 
@@ -76,12 +76,11 @@ class ImageData(object):
         self.__file_name = file_name
         #file_name ='a'
         self.__gray_scale = None
-        # スケジューリング
         ct()
+        # スケジューリング
         #self.task = asyncio.ensure_future(ImageData.imread(file_name, cv2.IMREAD_GRAYSCALE),loop=LOOP)
         self.task = LOOP.create_task(ImageData.imread(file_name, cv2.IMREAD_GRAYSCALE))
         ct()
-
         import time
         time.sleep(0)
 
@@ -101,7 +100,7 @@ class ImageData(object):
         try:
             ct()
             val = await LOOP.run_in_executor(None, partial(read_file, file_name))
-            buffer = asarray(bytearray(val), dtype=uint8)
+            buffer = np.asarray(bytearray(val), dtype=np.uint8)
             image = cv2.imdecode(buffer, flags)
             ct()
         except FileNotFoundError as ex:
@@ -272,7 +271,8 @@ class ImageWindow(tk.Toplevel):
 
 
 class SplashScreen(tk.Frame):
-    def __init__(self):
+    def __init__(self, master=None):
+        super().__init__(master)
         pass
 
 
@@ -280,8 +280,8 @@ class Application(tk.Frame):
     """
         Main Window
     """
-    def __init__(self):
-        super().__init__()
+    def __init__(self, master=None):
+        super().__init__(master)
         self.master.title('AdaptiveThreshold Simulator Ver:{0}'.format(__version__))
         self.master.update_idletasks()
         self.data = None #オリジナル画像
@@ -525,7 +525,8 @@ class Application(tk.Frame):
                                                  title='名前を付けて保存...')
         if not file_path:  # isEmpty
             return
-        ImageData.imwrite(file_path, self.label_image.np)
+        ImageData.imwrite(file_path, self.data.gray_scale)
+        #ImageData.imwrite(file_path, self.label_image.np)
         LOGGER.info('saved:%s', file_path)
 
     def get_params(self) -> tuple:
@@ -587,17 +588,6 @@ class Application(tk.Frame):
             self.toggle_changed(sender=self.gray_scale_image)
 
 
-def aaaa(f=None):
-    #aaa = Application()
-    print(12)
-    return 12
-
-
-async def appA():
-    return 12
-    #return await LOOP.run_in_executor(None, aaaa)
-
-
 def parse_args(args:list):
     """
         コマンドライン引数の解析
@@ -624,31 +614,24 @@ def main(entry_point=False):
 
     args = parse_args(argv)
     LOGGER.info('args:%s', args)
+    root = tk.Tk()
+    WidgetUtils.set_visible(root, False)
+    #root.withdraw()
+    file_path = Path(args.input_file)
+    file_path = filedialog.askopenfilename(parent=root)
+    if not file_path:  # isEmpty
+        return
+    file_path = Path(file_path)
+    if not file_path.exists():
+        pass
+       # file_path = filedialog.askopenfilename(parent=root)
     #
-    data = ImageData(args.input_file)
-    data.task.add_done_callback(aaaa)
-    #task = LOOP.create_task(appA)
-    #app = LOOP.run_until_complete(task)
-    #results = LOOP.run_until_complete(asyncio.wait_for(task, data.task))
-
-    #futures = asyncio.gather(task, data.task)
-    #print(futures)
-    count = 1
-    #while not futures.done():
-    #    print(count)
-    #    count += 1
-    #    # loop one step
-    #    LOOP.stop()
-    #    LOOP.run_forever()
-    #LOOP.run_until_complete(futures)
-    #LOOP.run_forever()
-    #bbb = LOOP.create_task(appA)
-
-    #val2 = LOOP.run_until_complete(bbb)
-    #print(val2)
-    #app = task.result()
+    image_file = args.input_file
+    image_file = file_path
+    data = ImageData(image_file)
     ct()
-    app = Application()
+    WidgetUtils.set_visible(root, True)
+    app = Application(root)
     print('#' *30)
     ct()
     app.load_image(data)
@@ -665,10 +648,7 @@ def main(entry_point=False):
         app.mainloop()
     else:
         return finish()
-    LOOP.close()
 
 
 if __name__ == "__main__":
     main(True)
-    #loop = asyncio.get_event_loop()
-    #loop.run_until_complete(main())
