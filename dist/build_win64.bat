@@ -10,13 +10,15 @@ $target_path = Join-Path $base_dir "src\simulator.py"
 Write-Host $base_dir
 Write-Host $target_path
 [string[]]$args_list = @($target_path, "--onefile", "--noconsole", "--distpath=./win", "--log-level DEBUG")
+#[string[]]$args_list = @($target_path, "--noconsole", "--distpath=./win", "--log-level DEBUG")
+
 #json ファイルからpyinstallerのファイルパスを取得
 $json = Get-Content $param_json_file -Encoding UTF8 -Raw | ConvertFrom-Json
 Write-Host "Start!!"
 Write-Host $json.pyinstaller
 
 Write-Output $args_list
-#Start-Process -FilePath $json.pyinstaller -ArgumentList $args_list -Wait
 Start-Process -FilePath $json.pyinstaller -ArgumentList $args_list -Wait
+
 Write-Host "Done!!"
 Start-Sleep -s 10
