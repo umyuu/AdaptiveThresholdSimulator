@@ -13,7 +13,7 @@ from functools import partial
 from logging import getLogger, DEBUG, StreamHandler
 from pathlib import Path
 import sys
-
+# gui
 import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import filedialog
@@ -175,10 +175,10 @@ class WidgetUtils(object):
     def bind_all(widget: tk.Widget, modifier: str = "", letter: str = "", callback=None) -> None:
         """
         Keyboard Shortcut Assign.
-        :param widget:
-        :param modifier:
-        :param letter:
-        :param callback:
+        :param widget:割り当てるウィジット
+        :param modifier:キーコード修飾子 Ctrl, Shift, Altなど
+        :param letter:割当文字
+        :param callback:イベント発生時に呼び出されるコールバック
         :return:
         """
         widget.bind_all('<{0}-{1}>'.format(modifier, letter.upper()), callback)
@@ -197,14 +197,15 @@ class WidgetUtils(object):
             widget.withdraw()
 
     @staticmethod
-    def set_image(widget: tk.Widget, img, encode_mode: int=cv2.IMREAD_GRAYSCALE) -> None:
+    def update_image(widget: tk.Widget, img, encode_mode: int=cv2.IMREAD_GRAYSCALE) -> None:
         """
-            画像の更新を行う。
-            note:ImageData.encode2PNMを使っている理由はexeファイルのサイズ削減のためです。
-            Pillowに依存しないことで1MB、実行ファイルサイズが削減されます。
+            表示画像の更新を行う。
             :param widget 画像を表示対象
             :param img イメージデータ
             :param encode_mode 出力画像形式　カラー / グレースケール
+
+            note:ImageData.encode2PNMを使っている理由はexeファイルのサイズ削減のため。
+                Pillowに依存しないことで1MB、実行ファイルサイズが削減されます。
         """
         assert img is not None
         # 画像出力用
@@ -237,7 +238,7 @@ class ImageWindow(tk.Toplevel):
         self.var.set(False)
 
     def set_image(self, img, read_mode: int):
-        WidgetUtils.set_image(self.__label_image, img, read_mode)
+        WidgetUtils.update_image(self.__label_image, img, read_mode)
 
     @property
     def tag(self) -> int:
@@ -279,7 +280,7 @@ class Application(tk.Frame):
         super().__init__(master)
         self.master.title('AdaptiveThreshold Simulator Ver:{0}'.format(__version__))
         self.master.update_idletasks()
-        self.data = None #オリジナル画像
+        self.data = None  # type: ImageData
         self.component = {}
         self.a_side = tk.Frame(self)
         self.component[Panel.a_side] = self.a_side  # 左側のコンテンツ
@@ -330,7 +331,7 @@ class Application(tk.Frame):
                 CONTROLS.C: (tk.Scale, self.top_frame, {
                     'label': 'C', 'from_': 0, 'to': 255,
                     'length': 300, 'orient': tk.HORIZONTAL}),
-            }
+                }
 
         for k, v in data.items():
             widget, parent, params = v
@@ -570,12 +571,12 @@ class Application(tk.Frame):
             for text in self.history:
                 self.listbox.insert(tk.END, text)
             ct()
-            WidgetUtils.set_image(self.label_image, result)
+            WidgetUtils.update_image(self.label_image, result)
             ct()
         except BaseException as ex:
             LOGGER.exception(ex)
 
-    def load_image(self, data: ImageData, redraw: bool=False):
+    def load_image(self, data: ImageData, redraw: bool = False):
         """
             画像を読み込み、画面に表示
         """
@@ -587,7 +588,7 @@ class Application(tk.Frame):
         if redraw:
             # self.draw(None)のエラーチェック条件に一致するとメインウィンドウの画像が更新されない。
             # そのため、こちらで更新する。
-            WidgetUtils.set_image(self.label_image, self.data.gray_scale)
+            WidgetUtils.update_image(self.label_image, self.data.gray_scale)
             # 画像を変更時にオリジナルとグレースケール画像も更新
             self.toggle_changed(sender=self.color_image)
             self.toggle_changed(sender=self.gray_scale_image)
