@@ -612,12 +612,13 @@ def main(entry_point=False):
     """
         Entry Point
         画像イメージを非同期で読み込む
+        :param entry_point:True アプリを通常起動、False Pytestより起動
     """
     argv = sys.argv[1:]
-    if entry_point:
-        pass
-    else:
+    if not entry_point:
+        # pytestより起動時
         argv.pop()
+        argv.append(r'../images/kodim07.png')
 
     args = parse_args(argv)
     LOGGER.info('args:%s', args)
