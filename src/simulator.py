@@ -223,17 +223,15 @@ class ImageWindow(tk.Toplevel):
     """
     カラー画像とグレースケール画像を表示するために、別ウィンドウとする。
     """
-    def __init__(self, master=None, cnf=None, **kw):
-        if cnf is None:
-            cnf = {}
-        super().__init__(master, cnf, **kw)
+    def __init__(self, master=None, tag: int=None, var: tk.BooleanVar=None):
+        super().__init__(master)
         self.protocol('WM_DELETE_WINDOW', self.on_window_exit)
         # packでウィンドウが表示されるので、初期表示は非表示に。
         WidgetUtils.set_visible(self, False)
         self.__label_image = tk.Label(self)
         self.__label_image.pack()
-        self.__tag = None
-        self.__var = None
+        self.__tag = tag
+        self.__var = var
 
     def on_window_exit(self):
         WidgetUtils.set_visible(self, False)
@@ -249,32 +247,17 @@ class ImageWindow(tk.Toplevel):
         """
         return self.__tag
 
-    @tag.setter
-    def tag(self, value: int):
-        """
-            タグ(Setter)
-        """
-        self.__tag = value
-
     @property
     def var(self) -> tk.BooleanVar:
         """
-            タグ(Getter)
+            BooleanVar(Getter)
         """
         return self.__var
-
-    @var.setter
-    def var(self, value: tk.BooleanVar):
-        """
-            タグ(Setter)
-        """
-        self.__var = value
 
 
 class SplashScreen(tk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
-        pass
 
 
 class CONTROLS(Enum):
@@ -282,6 +265,10 @@ class CONTROLS(Enum):
     THRESHOLD_TYPE = auto()
     BLOCK_SIZE = auto()
     C = auto()
+
+class Panel(Enum):
+    a_side = auto()
+    main_side = auto()
 
 
 class Application(tk.Frame):
@@ -295,37 +282,40 @@ class Application(tk.Frame):
         self.master.update_idletasks()
         self.data = None #オリジナル画像
         self.component = {}
-        self.a_side = tk.Frame(self)  # 左側のコンテンツ
-        self.main_side = tk.Frame(self)  # 右側のコンテンツ
+        self.a_side = tk.Frame(self)
+        self.component[Panel.a_side] = self.a_side  # 左側のコンテンツ
+        self.main_side = tk.Frame(self)
+        self.component[Panel.main_side] = self.main_side  # 右側のコンテンツ
+        self.top_frame = tk.LabelFrame(self.component[Panel.a_side], text='params')
+
+        #self.a_side =
+        #self.main_side = tk.Frame(self)  # 右側のコンテンツ
         # Data Bind Member
         self.var_file_name = tk.StringVar()
         self.var_creation_time = tk.StringVar()
         self.var_original = tk.BooleanVar(value=False)
         self.var_gray_scale = tk.BooleanVar(value=False)
         #
-        self.color_image = ImageWindow(self)
-        self.color_image.tag = cv2.IMREAD_COLOR
-        self.color_image.var = self.var_original
-        self.gray_scale_image = ImageWindow(self)
-        self.gray_scale_image.tag = cv2.IMREAD_GRAYSCALE
-        self.gray_scale_image.var = self.var_gray_scale
+        self.color_image = ImageWindow(self, cv2.IMREAD_COLOR, self.var_original)
+        self.gray_scale_image = ImageWindow(self, cv2.IMREAD_GRAYSCALE, self.var_gray_scale)
         self.history = deque(maxlen=12)
         self.menu_bar = self.create_menubar()
         self.master.configure(menu=self.menu_bar)
         self.create_widgets()
-        self.a_side.pack(side=tk.LEFT, anchor=tk.NW)
-        self.main_side.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, anchor=tk.NW)
+        self.component[Panel.a_side].pack(side=tk.LEFT, anchor=tk.NW)
+        self.component[Panel.main_side].pack(side=tk.LEFT, expand=True, fill=tk.BOTH, anchor=tk.NW)
 
     def create_widgets(self):
         """
-        メイン画面項目を生成/配置
+            メイン画面項目を生成/配置
+            1,左側のコンテンツ  a_side
+            1-1,入力パラメータ欄
+            1-2,コマンド欄
+            1-3,出力欄
+            2,右側のコンテンツ  main_side
         """
-        self.create_params_frame()
-        self.top_frame = tk.LabelFrame(self.a_side, text='params')
         self.top_frame.pack(anchor=tk.NW)
-        self.Controls = dict()
-
-
+        self.controls = dict()
         data = {CONTROLS.ADAPTIVE: (tk.Scale, self.top_frame, {
                     'label': '0:MEAN_C / 1:GAUSSIAN_C',
                     'from_': cv2.ADAPTIVE_THRESH_MEAN_C,
@@ -345,23 +335,14 @@ class Application(tk.Frame):
 
         for k, v in data.items():
             widget, parent, params = v
-            self.Controls[k] = widget(parent, params)
-
-
-        self.Controls[CONTROLS.ADAPTIVE].pack()
-        self.Controls[CONTROLS.THRESHOLD_TYPE].pack()
-        self.Controls[CONTROLS.BLOCK_SIZE].pack()
-        self.Controls[CONTROLS.C].pack()
+            self.controls[k] = widget(parent, params)
 
         self.scale_reset()
         # コマンドの登録処理
         # この位置で登録するのは self.draw イベントの発生を抑止するため。
-        self.Controls[CONTROLS.ADAPTIVE].configure(command=self.draw)
-        self.Controls[CONTROLS.THRESHOLD_TYPE].configure(command=self.draw)
-        self.Controls[CONTROLS.BLOCK_SIZE].configure(command=self.draw)
-        self.Controls[CONTROLS.C].configure(command=self.draw)
-
-
+        for child in self.top_frame.children.values():
+            child.configure(command=self.draw)
+            child.pack()
 
         self.command_frame = tk.Frame(self.a_side)
         self.button_reset = tk.Button(self.command_frame, text='RESET', command=self.scale_reset)
@@ -386,12 +367,6 @@ class Application(tk.Frame):
         self.label_image.pack(anchor=tk.NW, pady=10)
         #self.label_image.pack(anchor=tk.NW, fill=tk.BOTH)
         #self.label_image.pack(anchor=tk.NW, expand=True, fill=tk.BOTH)
-
-    def create_params_frame(self):
-        """
-        パラメータ値を入力欄
-        """
-        pass
 
     def create_output_frame(self):
         """
@@ -482,10 +457,10 @@ class Application(tk.Frame):
         """
         パラメータのリセット
         """
-        self.Controls[CONTROLS.ADAPTIVE].set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
-        self.Controls[CONTROLS.THRESHOLD_TYPE].set(cv2.THRESH_BINARY)
-        self.Controls[CONTROLS.BLOCK_SIZE].set(11)
-        self.Controls[CONTROLS.C].set(2)
+        self.controls[CONTROLS.ADAPTIVE].set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
+        self.controls[CONTROLS.THRESHOLD_TYPE].set(cv2.THRESH_BINARY)
+        self.controls[CONTROLS.BLOCK_SIZE].set(11)
+        self.controls[CONTROLS.C].set(2)
 
     def toggle_changed(self, event=None, sender: ImageWindow = None, toggle: bool = False):
         """
@@ -511,9 +486,7 @@ class Application(tk.Frame):
                 img = self.data.gray_scale
             elif sender.tag == cv2.IMREAD_COLOR:
                 # opencv (BGR)→(RGB)に変換
-                #img = cv2.cvtColor(self.data.color, cv2.COLOR_BGRA2RGB)
                 img = self.data.color
-                pass
             sender.set_image(img, sender.tag)
 
         WidgetUtils.set_visible(sender, visible)
@@ -566,10 +539,10 @@ class Application(tk.Frame):
         """
         :return:maxValue, adaptiveMethod, thresholdType, blockSize, C
         """
-        return 255, self.Controls[CONTROLS.ADAPTIVE].get(), \
-            self.Controls[CONTROLS.THRESHOLD_TYPE].get(), \
-            self.Controls[CONTROLS.BLOCK_SIZE].get(), \
-            self.Controls[CONTROLS.C].get()
+        return 255, self.controls[CONTROLS.ADAPTIVE].get(), \
+            self.controls[CONTROLS.THRESHOLD_TYPE].get(), \
+            self.controls[CONTROLS.BLOCK_SIZE].get(), \
+            self.controls[CONTROLS.C].get()
 
     def draw(self, event):
         """
@@ -624,15 +597,13 @@ class Application(tk.Frame):
             self.toggle_changed(sender=self.gray_scale_image)
 
 
-def parse_args(args:list):
+def parse_args(args: list):
     """
         コマンドライン引数の解析
     """
-    input_file = r'../images/kodim07.png'
-    # input_file = r'../images/桜_768-512.jpg'
     from argparse import ArgumentParser
     parser = ArgumentParser(prog=PROGRAM_NAME, description='AdaptiveThreshold Simulator')
-    parser.add_argument('input_file', metavar=None, nargs='?', default=input_file)
+    parser.add_argument('input_file', metavar=None, nargs='?')
     parser.add_argument('--version', action='version', version='%(prog)s {0}'.format(__version__))
     return parser.parse_args(args)
 
@@ -652,18 +623,13 @@ def main(entry_point=False):
     LOGGER.info('args:%s', args)
     root = tk.Tk()
     WidgetUtils.set_visible(root, False)
-    #root.withdraw()
-    file_path = Path(args.input_file)
-    file_path = filedialog.askopenfilename(parent=root)
-    if not file_path:  # isEmpty
-        return
-    file_path = Path(file_path)
-    if not file_path.exists():
-        pass
-       # file_path = filedialog.askopenfilename(parent=root)
-    #
+    # 起動引数で画像ファイルが渡されなかったから、ファイル選択ダイアログを表示する。
     image_file = args.input_file
-    image_file = file_path
+    if not image_file:  # isEmpty
+        image_file = filedialog.askopenfilename(parent=root)
+        if not image_file:  # isEmpty
+            return
+
     data = ImageData(image_file)
     ct()
     WidgetUtils.set_visible(root, True)
