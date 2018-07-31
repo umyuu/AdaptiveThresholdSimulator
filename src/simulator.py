@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 #from concurrent.futures import ProcessPoolExecutor as PoolExecutor
 from collections import deque
 from datetime import datetime
+from enum import Enum, auto
 from functools import partial
 
 from logging import getLogger, DEBUG, StreamHandler
@@ -276,18 +277,26 @@ class SplashScreen(tk.Frame):
         pass
 
 
+class CONTROLS(Enum):
+    ADAPTIVE = auto()
+    THRESHOLD_TYPE = auto()
+    BLOCK_SIZE = auto()
+    C = auto()
+
+
 class Application(tk.Frame):
     """
         Main Window
     """
+
     def __init__(self, master=None):
         super().__init__(master)
         self.master.title('AdaptiveThreshold Simulator Ver:{0}'.format(__version__))
         self.master.update_idletasks()
         self.data = None #オリジナル画像
         self.component = {}
-        self.a_side = tk.Frame(self) # 左側のコンテンツ
-        self.main_side = tk.Frame(self) # 右側のコンテンツ
+        self.a_side = tk.Frame(self)  # 左側のコンテンツ
+        self.main_side = tk.Frame(self)  # 右側のコンテンツ
         # Data Bind Member
         self.var_file_name = tk.StringVar()
         self.var_creation_time = tk.StringVar()
@@ -312,6 +321,47 @@ class Application(tk.Frame):
         メイン画面項目を生成/配置
         """
         self.create_params_frame()
+        self.top_frame = tk.LabelFrame(self.a_side, text='params')
+        self.top_frame.pack(anchor=tk.NW)
+        self.Controls = dict()
+
+
+        data = {CONTROLS.ADAPTIVE: (tk.Scale, self.top_frame, {
+                    'label': '0:MEAN_C / 1:GAUSSIAN_C',
+                    'from_': cv2.ADAPTIVE_THRESH_MEAN_C,
+                    'to': cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                    'length': 300, 'orient': tk.HORIZONTAL}),
+                CONTROLS.THRESHOLD_TYPE: (tk.Scale, self.top_frame, {
+                    'label': '0:BINARY / 1:INV',
+                    'from_': cv2.THRESH_BINARY, 'to': cv2.THRESH_BINARY_INV,
+                    'length': 300, 'orient': tk.HORIZONTAL}),
+                CONTROLS.BLOCK_SIZE: (tk.Scale, self.top_frame, {
+                    'label': 'BLOCK_SIZE', 'from_': 3, 'to': 255,  # initial stepvalue 3.
+                    'length': 300, 'orient': tk.HORIZONTAL}),
+                CONTROLS.C: (tk.Scale, self.top_frame, {
+                    'label': 'C', 'from_': 0, 'to': 255,
+                    'length': 300, 'orient': tk.HORIZONTAL}),
+            }
+
+        for k, v in data.items():
+            widget, parent, params = v
+            self.Controls[k] = widget(parent, params)
+
+
+        self.Controls[CONTROLS.ADAPTIVE].pack()
+        self.Controls[CONTROLS.THRESHOLD_TYPE].pack()
+        self.Controls[CONTROLS.BLOCK_SIZE].pack()
+        self.Controls[CONTROLS.C].pack()
+
+        self.scale_reset()
+        # コマンドの登録処理
+        # この位置で登録するのは self.draw イベントの発生を抑止するため。
+        self.Controls[CONTROLS.ADAPTIVE].configure(command=self.draw)
+        self.Controls[CONTROLS.THRESHOLD_TYPE].configure(command=self.draw)
+        self.Controls[CONTROLS.BLOCK_SIZE].configure(command=self.draw)
+        self.Controls[CONTROLS.C].configure(command=self.draw)
+
+
 
         self.command_frame = tk.Frame(self.a_side)
         self.button_reset = tk.Button(self.command_frame, text='RESET', command=self.scale_reset)
@@ -341,37 +391,7 @@ class Application(tk.Frame):
         """
         パラメータ値を入力欄
         """
-        controls = dict()
-        self.top_frame = tk.LabelFrame(self.a_side, text='params')
-        self.top_frame.pack(anchor=tk.NW)
-        controls['ADAPTIVE'] = {'label': '0:MEAN_C / 1:GAUSSIAN_C',
-                                'from_': cv2.ADAPTIVE_THRESH_MEAN_C,
-                                'to': cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                'length': 300, 'orient': tk.HORIZONTAL}
-        self.scale_adaptive = tk.Scale(self.top_frame, controls['ADAPTIVE'])
-        self.scale_adaptive.pack()
-        controls['THRESHOLDTYPE'] = {'label': '0:BINARY / 1:INV',
-                                     'from_': cv2.THRESH_BINARY, 'to': cv2.THRESH_BINARY_INV,
-                                     'length': 300, 'orient': tk.HORIZONTAL}
-        self.scale_threshold_type = tk.Scale(self.top_frame, controls['THRESHOLDTYPE'])
-        self.scale_threshold_type.pack()
-        # initial stepvalue 3.
-        controls['BLOCKSIZE'] = {'label': 'blocksize', 'from_': 3, 'to': 255,
-                                 'length': 300, 'orient': tk.HORIZONTAL}
-        self.scale_blocksize = tk.Scale(self.top_frame, controls['BLOCKSIZE'])
-        self.scale_blocksize.pack()
-        controls['C'] = {'label': 'c', 'from_': 0, 'to': 255,
-                         'length': 300, 'orient': tk.HORIZONTAL}
-        self.scale_c = tk.Scale(self.top_frame, controls['C'])
-        self.scale_c.pack()
-
-        self.scale_reset()
-        # コマンドの登録処理
-        # この位置で登録するのは self.draw イベントの発生を抑止するため。
-        self.scale_adaptive.configure(command=self.draw)
-        self.scale_threshold_type.configure(command=self.draw)
-        self.scale_blocksize.configure(command=self.draw)
-        self.scale_c.configure(command=self.draw)
+        pass
 
     def create_output_frame(self):
         """
@@ -395,7 +415,20 @@ class Application(tk.Frame):
                 self.y_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
                 self.configure(yscrollcommand=self.y_scrollbar.set)
                 self.pack(side=tk.LEFT, fill=tk.Y)
+        class ScrollTreeview(ttk.Treeview):
+            """
+            スクロールバー対応のリストボックス
+            """
+            def __init__(self, master=None, cnf: dict = None, **kw):
+                if cnf is None:
+                    cnf = {}
+                super().__init__(master, cnf, **kw)
+                self.y_scrollbar = tk.Scrollbar(master, orient=tk.VERTICAL, command=self.yview)
+                self.y_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+                self.configure(yscrollcommand=self.y_scrollbar.set)
+                self.pack(side=tk.LEFT, fill=tk.Y)
 
+        #self.listbox = ScrollListBox(self.output_frame, width=40, height=self.history.maxlen)
         self.listbox = ScrollListBox(self.output_frame, width=40, height=self.history.maxlen)
 
     def create_menubar(self) -> tk.Menu:
@@ -449,10 +482,10 @@ class Application(tk.Frame):
         """
         パラメータのリセット
         """
-        self.scale_adaptive.set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
-        self.scale_threshold_type.set(cv2.THRESH_BINARY)
-        self.scale_blocksize.set(11)
-        self.scale_c.set(2)
+        self.Controls[CONTROLS.ADAPTIVE].set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
+        self.Controls[CONTROLS.THRESHOLD_TYPE].set(cv2.THRESH_BINARY)
+        self.Controls[CONTROLS.BLOCK_SIZE].set(11)
+        self.Controls[CONTROLS.C].set(2)
 
     def toggle_changed(self, event=None, sender: ImageWindow = None, toggle: bool = False):
         """
@@ -533,7 +566,10 @@ class Application(tk.Frame):
         """
         :return:maxValue, adaptiveMethod, thresholdType, blockSize, C
         """
-        return 255, self.scale_adaptive.get(), self.scale_threshold_type.get(), self.scale_blocksize.get(), self.scale_c.get()
+        return 255, self.Controls[CONTROLS.ADAPTIVE].get(), \
+            self.Controls[CONTROLS.THRESHOLD_TYPE].get(), \
+            self.Controls[CONTROLS.BLOCK_SIZE].get(), \
+            self.Controls[CONTROLS.C].get()
 
     def draw(self, event):
         """
