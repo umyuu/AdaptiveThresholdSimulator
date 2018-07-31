@@ -130,18 +130,17 @@ class ImageData(object):
         return False
 
     @staticmethod
-    def imencode(image, flags: int):
+    def encode2PNM(image, flags: int):
         """
         読み込んだ画像データをPGMまたはPPM形式にエンコードする。
         :param image:
         :param flags:
         :return:
         """
-        table = {cv2.IMREAD_GRAYSCALE: '.PGM', cv2.IMREAD_COLOR: '.PPM'}
-        ext = table.get(flags)
+        ext = {cv2.IMREAD_GRAYSCALE: '.PGM', cv2.IMREAD_COLOR: '.PPM'}.get(flags)
         assert ext
         ret_val, enc_img = cv2.imencode(ext, image, None)
-        assert ret_val, 'imencode failure'
+        assert ret_val, 'encode2PNM failure'
         return enc_img.tobytes()
 
     @property
@@ -198,22 +197,22 @@ class WidgetUtils(object):
             widget.withdraw()
 
     @staticmethod
-    def set_image(widget: tk.Widget, img, read_mode : int) -> None:
+    def set_image(widget: tk.Widget, img, encode_mode: int=cv2.IMREAD_GRAYSCALE) -> None:
         """
             画像の更新を行う。
+            note:ImageData.encode2PNMを使っている理由はexeファイルのサイズ削減のためです。
+            Pillowに依存しないことで1MB、実行ファイルサイズが削減されます。
+            :param widget 画像を表示対象
+            :param img イメージデータ
+            :param encode_mode 出力画像形式　カラー / グレースケール
         """
         assert img is not None
-        # 出力画像用
+        # 画像出力用
         widget.np = img
-
         ct()
-        #al = Image.fromarray(img)
-        #time_t('set_image 4')
-        #retval, buf = cv2.imencode('.ppm', img)
-        #widget.src = buf
-        # GC対象にならないように参照を保持する。
-        widget.src = tk.PhotoImage(data=ImageData.imencode(img, read_mode))
-        #widget.src = ImageTk.PhotoImage(al)
+        # GC対象にならないように参照を保持
+        # PGMまたはPBM形式に変換する。
+        widget.src = tk.PhotoImage(data=ImageData.encode2PNM(img, encode_mode))
         ct()
         widget.configure(image=widget.src)
         ct()
@@ -237,7 +236,7 @@ class ImageWindow(tk.Toplevel):
         WidgetUtils.set_visible(self, False)
         self.var.set(False)
 
-    def set_image(self, img, read_mode : int):
+    def set_image(self, img, read_mode: int):
         WidgetUtils.set_image(self.__label_image, img, read_mode)
 
     @property
@@ -475,8 +474,7 @@ class Application(tk.Frame):
         """
         assert isinstance(sender, ImageWindow), 'toggle_changed:{0}'.format(sender)
         # Menu Visible
-        checked = [self.var_gray_scale, self.var_original]
-        var = checked[sender.tag]
+        var = sender.var
         if toggle:
             var.set(not var.get())
         visible = var.get()
@@ -485,7 +483,6 @@ class Application(tk.Frame):
             if sender.tag == cv2.IMREAD_GRAYSCALE:
                 img = self.data.gray_scale
             elif sender.tag == cv2.IMREAD_COLOR:
-                # opencv (BGR)→(RGB)に変換
                 img = self.data.color
             sender.set_image(img, sender.tag)
 
@@ -531,8 +528,7 @@ class Application(tk.Frame):
                                                  title='名前を付けて保存...')
         if not file_path:  # isEmpty
             return
-        ImageData.imwrite(file_path, self.data.gray_scale)
-        #ImageData.imwrite(file_path, self.label_image.np)
+        ImageData.imwrite(file_path, self.label_image.np)
         LOGGER.info('saved:%s', file_path)
 
     def get_params(self) -> tuple:
@@ -574,7 +570,7 @@ class Application(tk.Frame):
             for text in self.history:
                 self.listbox.insert(tk.END, text)
             ct()
-            WidgetUtils.set_image(self.label_image, result, cv2.IMREAD_GRAYSCALE)
+            WidgetUtils.set_image(self.label_image, result)
             ct()
         except BaseException as ex:
             LOGGER.exception(ex)
@@ -591,7 +587,7 @@ class Application(tk.Frame):
         if redraw:
             # self.draw(None)のエラーチェック条件に一致するとメインウィンドウの画像が更新されない。
             # そのため、こちらで更新する。
-            WidgetUtils.set_image(self.label_image, self.data.gray_scale, cv2.IMREAD_GRAYSCALE)
+            WidgetUtils.set_image(self.label_image, self.data.gray_scale)
             # 画像を変更時にオリジナルとグレースケール画像も更新
             self.toggle_changed(sender=self.color_image)
             self.toggle_changed(sender=self.gray_scale_image)
