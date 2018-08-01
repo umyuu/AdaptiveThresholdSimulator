@@ -237,7 +237,7 @@ class ImageWindow(tk.Toplevel):
         WidgetUtils.set_visible(self, False)
         self.var.set(False)
 
-    def set_image(self, img, read_mode: int):
+    def update_image(self, img, read_mode: int):
         WidgetUtils.update_image(self.__label_image, img, read_mode)
 
     @property
@@ -253,6 +253,27 @@ class ImageWindow(tk.Toplevel):
             BooleanVar(Getter)
         """
         return self.__var
+
+# 画像形式
+ImageFormat = {
+    'PNG': ('*.png', ),
+    'JPEG': ('*.jpg', '*.jpeg', ),
+    'WEBP': ('*.webp', ),
+    'BMP': ('*.bmp', )
+}
+
+def askopenfilename(widget: tk.Widget) -> str:
+    """
+    ファイルを開くダイアログ
+    :return:ファイルパス
+    """
+    IMAGE_FILE_TYPES = [('Image Files', ImageFormat['PNG'] + ImageFormat['JPEG'] + ImageFormat['WEBP'] + ImageFormat['BMP']),
+                        ('png (*.png)', ImageFormat['PNG']),
+                        ('jpg (*.jpg, *.jpeg)', ImageFormat['JPEG']),
+                        ('webp (*.webp)', ImageFormat['WEBP']),
+                        ('bmp (*.bmp)', ImageFormat['BMP']),
+                        ('*', '*.*')]
+    return filedialog.askopenfilename(parent=widget, filetypes=IMAGE_FILE_TYPES)
 
 
 class SplashScreen(tk.Frame):
@@ -475,7 +496,7 @@ class Application(tk.Frame):
         """
         assert isinstance(sender, ImageWindow), 'toggle_changed:{0}'.format(sender)
         # Menu Visible
-        var = sender.var
+        var = sender.var  # type:tk.BooleanVar
         if toggle:
             var.set(not var.get())
         visible = var.get()
@@ -485,7 +506,7 @@ class Application(tk.Frame):
                 img = self.data.gray_scale
             elif sender.tag == cv2.IMREAD_COLOR:
                 img = self.data.color
-            sender.set_image(img, sender.tag)
+            sender.update_image(img, sender.tag)
 
         WidgetUtils.set_visible(sender, visible)
 
@@ -499,11 +520,7 @@ class Application(tk.Frame):
         """
             ファイルを開くダイアログ
         """
-        ALL_IMAGE = ('Image Files', ('*.png', '*.jpg', '*.jpeg'))
-        IMAGE_FILE_TYPES = [ALL_IMAGE, ('png (*.png)', '*.png'),
-                            ('jpg (*.jpg, *.jpeg)', ("*.jpg", "*.jpeg")), ('*', '*.*')]
-        file_path = filedialog.askopenfilename(parent=self,
-                                               filetypes=IMAGE_FILE_TYPES)
+        file_path = askopenfilename(self)
         if not file_path:  # isEmpty
             return
 
@@ -520,8 +537,9 @@ class Application(tk.Frame):
         # create default file name.
         p = Path(self.data.file_name)
         file_name = '_'.join(map(str, (p.stem, *self.get_params()))) + p.suffix
-        IMAGE_FILE_TYPES = [('png (*.png)', '*.png'),
-                            ('jpg (*.jpg, *.jpeg)', ("*.jpg", "*.jpeg")),
+        IMAGE_FILE_TYPES = [('png (*.png)', ImageFormat['PNG']),
+                            ('jpg (*.jpg, *.jpeg)', ImageFormat['JPEG']),
+                            ('webp (*.webp)', ImageFormat['WEBP']),
                             ('*', '*.*')]
         file_path = filedialog.asksaveasfilename(parent=self,
                                                  filetypes=IMAGE_FILE_TYPES,
@@ -624,7 +642,7 @@ def main(entry_point=False):
     # 起動引数で画像ファイルが渡されなかったから、ファイル選択ダイアログを表示する。
     image_file = args.input_file
     if not image_file:  # isEmpty
-        image_file = filedialog.askopenfilename(parent=root)
+        image_file = askopenfilename(root)
         if not image_file:  # isEmpty
             return
 
