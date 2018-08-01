@@ -1,0 +1,1 @@
+python C:\Users\%USERNAME%\AppData\Roaming\Python\Python36\Scripts\snakeviz.exe ..\pref\program.prof
