@@ -6,7 +6,7 @@ cv2.adaptiveThreshold function parameter Simulator.
 ![AdaptiveThresholdSimulator](docs/dialog.png)
 ## Install
 [Download Releases File](https://github.com/umyuu/AdaptiveThresholdSimulator/releases)
-
+Caution:**File Size 50MB Over.**
 
 ## Synopsis
 - Windows
