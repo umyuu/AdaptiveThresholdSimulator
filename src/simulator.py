@@ -13,6 +13,7 @@ from functools import partial
 from logging import getLogger, DEBUG, StreamHandler
 from pathlib import Path
 import sys
+from timeit import Timer
 # gui
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -23,7 +24,7 @@ import cv2
 
 
 PROGRAM_NAME = 'AdaptiveThreshold'
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 # logging
 HANDLER = StreamHandler()
 HANDLER.setLevel(DEBUG)
@@ -36,6 +37,7 @@ LOGGER.addHandler(HANDLER)
 LOOP = asyncio.get_event_loop()
 #LOOP = asyncio.new_event_loop()
 asyncio.set_event_loop(LOOP)
+
 LOOP.set_default_executor(PoolExecutor(8))
 
 
@@ -44,26 +46,32 @@ def stop_watch():
     from traceback import extract_stack
     from itertools import count
     start_time = perf_counter()
+    endt_time = start_time
     c = count()
 
     def step():
+        nonlocal endt_time
         func_name = extract_stack(None, 2)[0][2]
         n = next(c)
+        elapsed = endt_time - start_time
         end_time = perf_counter()
-        MSG = [func_name, n, end_time]
+        endt_time = end_time
+        MSG = [func_name, n, end_time, elapsed]
         LOGGER.debug(MSG)
         return MSG, end_time - start_time
 
     return step
 
-
+#ccc = Timer(stop_watch)
+#print(ccc.print_exc())
 ct = stop_watch()
 
 
-def read_file(file_name: str):
-    p = Path(file_name)
-    with p.open('rb') as file:
-        return file.read()
+def read_file(file_name: str, flags: int):
+    mm = np.memmap(file_name, dtype=np.uint8, mode='r')
+    image = cv2.imdecode(mm, flags)
+    del mm  # メモリマップドファイルの割当を解除。
+    return image
 
 
 class ImageData(object):
@@ -100,9 +108,7 @@ class ImageData(object):
         image = None
         try:
             ct()
-            val = await LOOP.run_in_executor(None, partial(read_file, file_name))
-            buffer = np.asarray(bytearray(val), dtype=np.uint8)
-            image = cv2.imdecode(buffer, flags)
+            image = await LOOP.run_in_executor(None, partial(read_file, file_name, flags))
             ct()
         except FileNotFoundError as ex:
             # cv2.imread compatible
