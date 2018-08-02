@@ -40,7 +40,6 @@ asyncio.set_event_loop(LOOP)
 
 LOOP.set_default_executor(PoolExecutor(8))
 
-
 def stop_watch():
     from time import perf_counter
     from traceback import extract_stack
@@ -68,6 +67,12 @@ ct = stop_watch()
 
 
 def read_file(file_name: str, flags: int):
+    """
+    画像ファイルを読み込み、
+    :param file_name:
+    :param flags:
+    :return:
+    """
     mm = np.memmap(file_name, dtype=np.uint8, mode='r')
     image = cv2.imdecode(mm, flags)
     del mm  # メモリマップドファイルの割当を解除。
@@ -136,18 +141,19 @@ class ImageData(object):
         return False
 
     @staticmethod
-    def encode2PNM(image, flags: int):
+    def encode2PNM(image, ext: str):
         """
         読み込んだ画像データをPGMまたはPPM形式にエンコードする。
         :param image:
         :param flags:
         :return:
         """
-        ext = {cv2.IMREAD_GRAYSCALE: '.PGM', cv2.IMREAD_COLOR: '.PPM'}.get(flags)
         assert ext
         ret_val, enc_img = cv2.imencode(ext, image, None)
         assert ret_val, 'encode2PNM failure'
-        return enc_img.tobytes()
+        b = enc_img.tobytes()
+        print(len(b))
+        return b
 
     @property
     def file_name(self) -> str:
@@ -217,9 +223,10 @@ class WidgetUtils(object):
         # 画像出力用
         widget.np = img
         ct()
-        # GC対象にならないように参照を保持
+        ext = {cv2.IMREAD_GRAYSCALE: '.PGM', cv2.IMREAD_COLOR: '.PPM'}.get(encode_mode)
         # PGMまたはPBM形式に変換する。
-        widget.src = tk.PhotoImage(data=ImageData.encode2PNM(img, encode_mode))
+        # GC対象にならないように参照を保持
+        widget.src = tk.PhotoImage(data=ImageData.encode2PNM(img, ext))
         ct()
         widget.configure(image=widget.src)
         ct()
@@ -265,7 +272,8 @@ ImageFormat = {
     'PNG': ('*.png', ),
     'JPEG': ('*.jpg', '*.jpeg', ),
     'WEBP': ('*.webp', ),
-    'BMP': ('*.bmp', )
+    'BMP': ('*.bmp', ),
+    'PNM': ('*.pbm', '*.pgm', '*.ppm', )
 }
 
 def askopenfilename(widget: tk.Widget) -> str:
@@ -416,7 +424,13 @@ class Application(tk.Frame):
                 self.y_scrollbar = tk.Scrollbar(master, orient=tk.VERTICAL, command=self.yview)
                 self.y_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
                 self.configure(yscrollcommand=self.y_scrollbar.set)
+                self.x_scrollbar = tk.Scrollbar(master, orient=tk.HORIZONTAL, command=self.xview)
+                self.x_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+                self.configure(xscrollcommand=self.x_scrollbar.set)
                 self.pack(side=tk.LEFT, fill=tk.Y)
+
+
+
         class ScrollTreeview(ttk.Treeview):
             """
             スクロールバー対応のリストボックス
@@ -429,7 +443,10 @@ class Application(tk.Frame):
                 self.y_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
                 self.configure(yscrollcommand=self.y_scrollbar.set)
                 self.pack(side=tk.LEFT, fill=tk.Y)
-
+                self.x_scrollbar = tk.Scrollbar(master, orient=tk.VERTICAL, command=self.xview)
+                self.x_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+                self.configure(yscrollcommand=self.x_scrollbar.set)
+                #self.pack(side=tk.LEFT, fill=tk.Y)
         #self.listbox = ScrollListBox(self.output_frame, width=40, height=self.history.maxlen)
         self.listbox = ScrollListBox(self.output_frame, width=40, height=self.history.maxlen)
 
@@ -597,6 +614,7 @@ class Application(tk.Frame):
             ct()
             WidgetUtils.update_image(self.label_image, result)
             ct()
+            LOGGER.info('#' * 50)
         except BaseException as ex:
             LOGGER.exception(ex)
 
