@@ -3,7 +3,8 @@
     Reporter
     ログハンドラーが重複登録されるのを防ぐために1箇所で生成してログハンドラーを返す。
 """
-from logging import Logger, getLogger, DEBUG, StreamHandler
+from logging import Logger, getLogger, Formatter, StreamHandler
+from logging import DEBUG
 
 _reporters = []
 
@@ -19,10 +20,15 @@ def __make_reporter(name: str='AdaptiveThreshold'):
     :return:
     """
     handler = StreamHandler()
+    formatter = Formatter('pid:%(process)d,tid:%(thread)d - %(message)s')
+    handler.setFormatter(formatter)
     handler.setLevel(DEBUG)
     logger = getLogger(name)
     logger.setLevel(DEBUG)
     logger.addHandler(handler)
+    # asyncioのログレベルを変更
+    # @see https://docs.python.org/3/library/asyncio-dev.html#logging
+    getLogger('asyncio').setLevel(DEBUG)
     _reporters.append(logger)
 
 

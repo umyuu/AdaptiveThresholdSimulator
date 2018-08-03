@@ -309,7 +309,7 @@ class Application(tk.Frame):
             return
 
         ct()
-        self.load_image(ImageData(str(file_path)), True)
+        self.load_image(ImageData(file_path), True)
         ct()
         self.draw(None)
         ct()
@@ -424,7 +424,7 @@ def main(entry_point=False):
     LOGGER.info('args:%s', args)
     root = tk.Tk()
     WidgetUtils.set_visible(root, False)
-    # 起動引数で画像ファイルが渡されなかったから、ファイル選択ダイアログを表示する。
+    # 起動引数で画像ファイルが渡されなかったら、ファイル選択ダイアログを表示する。
     image_file = args.input_file
     if not image_file:  # isEmpty
         image_file = askopenfilename(root)
@@ -442,7 +442,6 @@ def main(entry_point=False):
     app.pack(expand=True, fill=tk.BOTH)
     ct()
     app.draw(None)
-
     def finish():
         return ct()
 

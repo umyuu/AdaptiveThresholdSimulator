@@ -1,18 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-    Utils
-"""
+    Widget Utils
 
-# gui
+"""
+# GUI
 import tkinter as tk
-# library
+# Library
 import cv2
+#
 from image_utils import ImageData
 from reporter import get_current_reporter
 from stopwatch import stop_watch
 
 LOGGER = get_current_reporter()
 ct = stop_watch()
+
 
 class WidgetUtils(object):
     """
