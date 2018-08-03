@@ -19,38 +19,14 @@ import cv2
 # @see https://stackoverflow.com/questions/21236824/unresolved-reference-issue-in-pycharm
 from widget_utils import  ImageData, WidgetUtils, ImageWindow
 from reporter import get_current_reporter
+from stopwatch import stop_watch
+
 
 PROGRAM_NAME = 'AdaptiveThreshold'
 __version__ = '0.0.5'
 # logging
 LOGGER = get_current_reporter()
-
-
-def stop_watch():
-    from time import perf_counter
-    from traceback import extract_stack
-    from itertools import count
-    start_time = perf_counter()
-    endt_time = start_time
-    c = count()
-
-    def step():
-        nonlocal endt_time
-        func_name = extract_stack(None, 2)[0][2]
-        n = next(c)
-        elapsed = endt_time - start_time
-        end_time = perf_counter()
-        endt_time = end_time
-        MSG = [func_name, n, end_time, elapsed]
-        LOGGER.debug(MSG)
-        return MSG, end_time - start_time
-
-    return step
-
-#ccc = Timer(stop_watch)
-#print(ccc.print_exc())
 ct = stop_watch()
-
 
 # 画像形式
 ImageFormat = {

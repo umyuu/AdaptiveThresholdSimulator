@@ -7,14 +7,17 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 #from concurrent.futures import ProcessPoolExecutor as PoolExecutor
 from functools import partial
-from reporter import get_current_reporter
 from pathlib import Path
 
 # library
 import numpy as np
 import cv2
+#
+from reporter import get_current_reporter
+from stopwatch import stop_watch
 
 LOGGER = get_current_reporter()
+ct = stop_watch()
 
 # get_event_loopではなくnew_event_loop
 # Todo:contextlib.closingを使う。
@@ -23,31 +26,6 @@ LOOP = asyncio.get_event_loop()
 asyncio.set_event_loop(LOOP)
 # Todo:初回起動の処理時間のボトルネックは↓のプロセスプール作成処理
 LOOP.set_default_executor(PoolExecutor(4))
-
-
-def stop_watch():
-    from time import perf_counter
-    from traceback import extract_stack
-    from itertools import count
-    start_time = perf_counter()
-    endt_time = start_time
-    c = count()
-
-    def step():
-        nonlocal endt_time
-        func_name = extract_stack(None, 2)[0][2]
-        n = next(c)
-        elapsed = endt_time - start_time
-        end_time = perf_counter()
-        endt_time = end_time
-        MSG = [func_name, n, end_time, elapsed]
-        LOGGER.debug(MSG)
-        return MSG, end_time - start_time
-
-    return step
-
-
-ct = stop_watch()
 
 
 def read_file(file_name: str):
@@ -94,6 +72,7 @@ class ImageData(object):
         @see https://github.com/opencv/opencv/issues/4292
         cv2.imread alternative = np.asarray & cv2.imdecode
         Unicode Path/Filename image file read.
+
         :param file_name:
         :param flags: cv2.IMREAD_COLOR
         :return: {Mat}image BGR
@@ -114,6 +93,7 @@ class ImageData(object):
         """
         Unicode Path/Filename for imwrite Not supported.
         cv2.imwrite alternative = cv2.imencode & numpy.ndarray.tofile
+
         :param file_name
         :param image imagedata
         :param params encode params
@@ -172,7 +152,8 @@ def main():
     """
         Entry Point
     """
-    pass
+    image = ImageData(r'../images/kodim07.png')
+    print(type(image.color))
 
 
 if __name__ == "__main__":
