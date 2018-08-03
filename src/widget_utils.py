@@ -110,7 +110,12 @@ def main():
     """
         Entry Point
     """
-    pass
+    import xml.etree.ElementTree as ET
+    tree = ET.parse('MainWindow.xml')
+    root = tree.getroot()
+    for child in root:
+        print(child.tag, child.attrib)
+
 
 
 if __name__ == "__main__":

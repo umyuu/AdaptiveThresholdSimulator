@@ -8,7 +8,6 @@ from logging import DEBUG
 
 _reporters = []
 
-
 def get_current_reporter() -> Logger:
     return _reporters[-1]
 
@@ -20,10 +19,11 @@ def __make_reporter(name: str='AdaptiveThreshold'):
     :return:
     """
     handler = StreamHandler()
-    formatter = Formatter('pid:%(process)d,tid:%(thread)d - %(message)s')
+    formatter = Formatter('pid:%(process)05d, tid:%(thread)05d - %(message)s')
     handler.setFormatter(formatter)
     handler.setLevel(DEBUG)
     logger = getLogger(name)
+    #logger = getLogger(name)
     logger.setLevel(DEBUG)
     logger.addHandler(handler)
     # asyncioのログレベルを変更
@@ -39,6 +39,7 @@ def main():
     """
         Entry Point
     """
+    assert len(_reporters) == 1
     logger = get_current_reporter()
     logger.debug("main")
 

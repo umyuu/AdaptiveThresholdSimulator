@@ -57,10 +57,10 @@ class SplashScreen(tk.Frame):
 
 
 class CONTROLS(Enum):
-    ADAPTIVE = auto()
-    THRESHOLD_TYPE = auto()
-    BLOCK_SIZE = auto()
-    C = auto()
+    ADAPTIVE = "ADAPTIVE"
+    THRESHOLD_TYPE = "THRESHOLD_TYPE"
+    BLOCK_SIZE = "BLOCK_SIZE"
+    C = "C"
 
 class Panel(Enum):
     a_side = auto()
@@ -112,6 +112,17 @@ class Application(tk.Frame):
         """
         self.top_frame.pack(anchor=tk.NW)
         self.controls = dict()
+        import xml.etree.ElementTree as ET
+        tree = ET.parse('MainWindow.xml')
+        import copy
+        for child in tree.getroot():
+            attribute = copy.deepcopy(child.attrib) # type:dict
+            control_name = attribute.pop('name')
+            #scale = tk.Scale(self.top_frame, attrib)
+            self.controls[control_name] = tk.Scale(self.top_frame, attribute)
+            #print(child.tag, attrib)
+
+        print(self.controls)
         data = {CONTROLS.ADAPTIVE: (tk.Scale, self.top_frame, {
                     'label': '0:MEAN_C / 1:GAUSSIAN_C',
                     'from_': cv2.ADAPTIVE_THRESH_MEAN_C,
@@ -129,9 +140,9 @@ class Application(tk.Frame):
                     'length': 300, 'orient': tk.HORIZONTAL}),
                 }
 
-        for k, v in data.items():
-            widget, parent, params = v
-            self.controls[k] = widget(parent, params)
+        #for k, v in data.items():
+        #    widget, parent, params = v
+        #    self.controls[k] = widget(parent, params)
 
         self.scale_reset()
         # コマンドの登録処理
@@ -262,10 +273,10 @@ class Application(tk.Frame):
         """
         パラメータのリセット
         """
-        self.controls[CONTROLS.ADAPTIVE].set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
-        self.controls[CONTROLS.THRESHOLD_TYPE].set(cv2.THRESH_BINARY)
-        self.controls[CONTROLS.BLOCK_SIZE].set(11)
-        self.controls[CONTROLS.C].set(2)
+        self.controls["ADAPTIVE"].set(cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
+        self.controls["THRESHOLD_TYPE"].set(cv2.THRESH_BINARY)
+        self.controls["BLOCK_SIZE"].set(11)
+        self.controls["C"].set(2)
 
     def toggle_changed(self, event=None, sender: ImageWindow = None, toggle: bool = False):
         """
@@ -338,10 +349,10 @@ class Application(tk.Frame):
         """
         :return:maxValue, adaptiveMethod, thresholdType, blockSize, C
         """
-        return 255, self.controls[CONTROLS.ADAPTIVE].get(), \
-            self.controls[CONTROLS.THRESHOLD_TYPE].get(), \
-            self.controls[CONTROLS.BLOCK_SIZE].get(), \
-            self.controls[CONTROLS.C].get()
+        return 255, self.controls["ADAPTIVE"].get(), \
+            self.controls["THRESHOLD_TYPE"].get(), \
+            self.controls["BLOCK_SIZE"].get(), \
+            self.controls["C"].get()
 
     def draw(self, event):
         """
@@ -414,42 +425,50 @@ def main(entry_point=False):
         画像イメージを非同期で読み込む
         :param entry_point:True アプリを通常起動、False Pytestより起動
     """
-    argv = sys.argv[1:]
-    if not entry_point:
-        # pytestより起動時
-        argv.pop()
-        argv.append(r'../images/kodim07.png')
+    from concurrent.futures import ThreadPoolExecutor as PoolExecutor
+    #from concurrent.futures import ProcessPoolExecutor as PoolExecutor
+    import asyncio
+    with PoolExecutor(8) as io_pool:
+        loop = asyncio.get_event_loop()
+        loop.set_default_executor(io_pool)
+        argv = sys.argv[1:]
+        if not entry_point:
+            # pytestより起動時
+            argv.pop()
+            argv.append(r'../images/kodim07.png')
 
-    args = parse_args(argv)
-    LOGGER.info('args:%s', args)
-    root = tk.Tk()
-    WidgetUtils.set_visible(root, False)
-    # 起動引数で画像ファイルが渡されなかったら、ファイル選択ダイアログを表示する。
-    image_file = args.input_file
-    if not image_file:  # isEmpty
-        image_file = askopenfilename(root)
+        args = parse_args(argv)
+        LOGGER.info('args:%s', args)
+        root = tk.Tk()
+        WidgetUtils.set_visible(root, False)
+        # 起動引数で画像ファイルが渡されなかったら、ファイル選択ダイアログを表示する。
+        image_file = args.input_file
         if not image_file:  # isEmpty
-            return
+            image_file = askopenfilename(root)
+            if not image_file:  # isEmpty
+                return
 
-    data = ImageData(image_file)
-    ct()
-    WidgetUtils.set_visible(root, True)
-    app = Application(root)
-    print('#' *30)
-    ct()
-    app.load_image(data)
-    ct()
-    app.pack(expand=True, fill=tk.BOTH)
-    ct()
-    app.draw(None)
-    def finish():
-        return ct()
+        data = ImageData(image_file)
+        ct()
+        WidgetUtils.set_visible(root, True)
+        app = Application(root)
+        LOGGER.info('#' * 30)
+        ct()
+        app.load_image(data)
+        ct()
+        app.pack(expand=True, fill=tk.BOTH)
+        ct()
+        app.draw(None)
 
-    if entry_point:
-        app.after(0, finish)
-        app.mainloop()
-    else:
-        return finish()
+        def finish():
+            return ct()
+
+        if entry_point:
+            app.after(0, finish)
+            app.mainloop()
+        else:
+            return finish()
+
 
 
 if __name__ == "__main__":
