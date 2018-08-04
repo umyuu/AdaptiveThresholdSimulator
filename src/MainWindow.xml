@@ -1,5 +1,9 @@
 ﻿<?xml version="1.0"?>
 <Window>
+    <!--
+        アプリのメイン画面定義
+        data-* data属性
+    -->
     <MenuBar id="menu_bar" tearoff="False">
         <Menu id="File" tearoff="False" data-label="File"/>
         <Menu id="Image" tearoff="False" data-label="Image"/>
@@ -16,7 +20,7 @@
             <Button id="RESET_BUTTON" text='RESET(R)' />
         </Frame>
         <LabelFrame id="output_frame" text='output'>
-            <Label id="LABEL_MESSAGE" />
+            <Label id="LABEL_MESSAGE"/>
             <ScrollListBox id="LISTBOX" width="40" height="12" />
         </LabelFrame>
     </Frame>
@@ -26,4 +30,8 @@
         <Entry id="ENTRY_CREATION_TIME" />
         <Label id="LABEL_IMAGE"/>
     </Frame>
+    <ImageWindow id="color_image" data-tag="1">
+    </ImageWindow>
+    <ImageWindow id="gray_scale_image" data-tag="0">
+    </ImageWindow>
 </Window>

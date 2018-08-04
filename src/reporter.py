@@ -19,7 +19,7 @@ def __make_reporter(name: str='AdaptiveThreshold'):
     :return:
     """
     handler = StreamHandler()
-    formatter = Formatter('pid:%(process)05d, tid:%(thread)05d - %(message)s')
+    formatter = Formatter('%(asctime)s pid:%(process)05d, tid:%(thread)05d - %(message)s')
     handler.setFormatter(formatter)
     handler.setLevel(DEBUG)
     logger = getLogger(name)

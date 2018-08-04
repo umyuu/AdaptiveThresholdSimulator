@@ -74,15 +74,16 @@ class ImageWindow(tk.Toplevel):
     """
     カラー画像とグレースケール画像を表示するために、別ウィンドウとする。
     """
-    def __init__(self, master=None, tag: int=None, var: tk.BooleanVar=None):
-        super().__init__(master)
+    def __init__(self, master=None, cnf: dict = None, **kw):
+        if cnf is None:
+            cnf = {}
+        super().__init__(master, cnf, **kw)
         self.protocol('WM_DELETE_WINDOW', self.on_window_exit)
         # packでウィンドウが表示されるので、初期表示は非表示に。
         WidgetUtils.set_visible(self, False)
         self.__label_image = tk.Label(self)
         self.__label_image.pack()
-        self.__tag = tag
-        self.__var = var
+        self.__var = None
 
     def on_window_exit(self):
         WidgetUtils.set_visible(self, False)
@@ -96,7 +97,7 @@ class ImageWindow(tk.Toplevel):
         """
             タグ(Getter)
         """
-        return self.__tag
+        return int(self.data_attributes['data-tag'])
 
     @property
     def var(self) -> tk.BooleanVar:
@@ -105,20 +106,19 @@ class ImageWindow(tk.Toplevel):
         """
         return self.__var
 
+    @var.setter
+    def var(self, value: tk.BooleanVar):
+        """
+            タグ(Getter)
+        """
+        self.__var = value
+
 
 def main():
     """
         Entry Point
     """
-    import xml.etree.ElementTree as ET
-    tree = ET.parse('MainWindow.xml')
-    for child in tree.getroot().iter():
-        print(child.tag, child.attrib)
-    print("AAAAA")
-    for root in tree.getroot():
-        for child in root.iter():
-            print(child.tag, child.attrib)
-
+    pass
 
 
 if __name__ == "__main__":

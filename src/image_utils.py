@@ -146,7 +146,7 @@ class ImageData(object):
         ret_val, enc_img = cv2.imencode(ext, image, None)
         assert ret_val, 'encode2PNM failure'
         b = enc_img.tobytes()
-        print(len(b))
+        LOGGER.info("file_size:%d", len(b))
         return b
 
     @property

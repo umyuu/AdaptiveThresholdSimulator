@@ -73,15 +73,15 @@ class Application(tk.Frame):
         self.var_original = tk.BooleanVar(value=False)
         self.var_gray_scale = tk.BooleanVar(value=False)
         #
-        self.color_image = ImageWindow(self, cv2.IMREAD_COLOR, self.var_original)
-        self.gray_scale_image = ImageWindow(self, cv2.IMREAD_GRAYSCALE, self.var_gray_scale)
-        #
         self.create_widgets(file_name)
         #
-        # リストボックスの行数
+        self.color_image = self.controls["color_image"] # type:ImageWindow
+        self.color_image.var = self.var_original
+        self.gray_scale_image = self.controls["gray_scale_image"] # type:ImageWindow
+        self.gray_scale_image.var = self.var_gray_scale
+        # リストボックスの履歴行数
         self.history = deque(maxlen=12)
-        self.menu_bar = self.create_menubar()
-        self.master.configure(menu=self.menu_bar)
+        self.master.configure(menu=self.create_menubar())
 
     def create_widgets(self, xml_file:str=None):
         """
@@ -128,10 +128,10 @@ class Application(tk.Frame):
 
         import xml.etree.ElementTree as ET
         widget_names = {"Button": tk.Button, "Entry": tk.Entry, "Frame": tk.Frame,
+                        "ImageWindow": ImageWindow,
                         "Label": tk.Label, "LabelFrame": tk.LabelFrame,
                         "Menu": tk.Menu, "MenuBar": tk.Menu,
                         "Scale": tk.Scale, "ScrollListBox": ScrollListBox}
-
         tree = ET.parse(xml_file)
         # 親,子のMAP
         parent_map = {c: p for p in tree.iter() for c in p}
@@ -146,11 +146,6 @@ class Application(tk.Frame):
                 control_name = attribute.pop('id', None)
                 # 親を検索する。
                 parent = frames.get(parent_map.get(child).tag, self.master)
-                #if child.tag == "MenuBar":
-                #    print(control_name)
-                #    self.menu_bar = self.create_menubar()
-                #    self.master.configure(menu=self.menu_bar)
-                #    continue
                 widget = widget_names[child.tag]
                 attributes = {key: v for key, v in attribute.items() if not key.startswith("data-")}
                 # 画面項目の生成
@@ -166,9 +161,9 @@ class Application(tk.Frame):
         self.controls["a_side"].pack(side=tk.LEFT, anchor=tk.NW)
         self.controls["top_frame"].pack(anchor=tk.NW)
 
-        from pprint import PrettyPrinter
-        pp = PrettyPrinter()
-        pp.pprint(self.controls)
+        #from pprint import PrettyPrinter
+        #pp = PrettyPrinter()
+        #pp.pprint(self.controls)
 
         self.scale_reset(None)
         # コマンドの登録処理
@@ -180,7 +175,6 @@ class Application(tk.Frame):
         #self.controls["INVALID"].pack(side=tk.LEFT)
         WidgetUtils.bind_all(self.controls["RESET_BUTTON"], 'Control', 'R', self.scale_reset)
         self.controls["RESET_BUTTON"].configure(command=partial(self.scale_reset, event=None))
-        #self.controls["RESET_BUTTON"].configure(command=self.scale_reset)
         self.controls["RESET_BUTTON"].pack()
         #self.controls["command_frame"].pack()
         self.controls["command_frame"].pack(side=tk.TOP)
@@ -409,9 +403,10 @@ def main(entry_point=False):
         画像イメージを非同期で読み込む
         :param entry_point:True アプリを通常起動、False Pytestより起動
     """
+    import asyncio
     from concurrent.futures import ThreadPoolExecutor as PoolExecutor
     #from concurrent.futures import ProcessPoolExecutor as PoolExecutor
-    import asyncio
+
     with PoolExecutor(8) as io_pool:
         loop = asyncio.get_event_loop()
         loop.set_default_executor(io_pool)
