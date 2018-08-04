@@ -1,7 +1,21 @@
 ﻿<?xml version="1.0"?>
-<Window name="a_side">
-    <Scale name="ADAPTIVE" label="0:MEAN_C / 1:GAUSSIAN_C" from_="0" to="1" length="300" orient="horizontal"/>
-    <Scale name="THRESHOLD_TYPE" label="0:BINARY / 1:INV" from_="0" to="1" length="300" orient="horizontal"/>
-    <Scale name="BLOCK_SIZE" label="BLOCK_SIZE" from_="3" to="255" length="300" orient="horizontal"/>
-    <Scale name="C" label="C" from_="0" to="255" length="300" orient="horizontal"/>
+<Window>
+    <Frame id="a_side">
+        <LabelFrame id="top_frame" text='params'>
+            <Scale id="ADAPTIVE" label="0:MEAN_C / 1:GAUSSIAN_C" from_="0" to="1" length="300" orient="horizontal" />
+            <Scale id="THRESHOLD_TYPE" label="0:BINARY / 1:INV" from_="0" to="1" length="300" orient="horizontal" />
+            <Scale id="BLOCK_SIZE" label="BLOCK_SIZE" from_="3" to="255" length="300" orient="horizontal" />
+            <Scale id="C" label="C" from_="0" to="255" length="300" orient="horizontal" />
+        </LabelFrame>
+        <Frame id="command_frame">
+            <Button id="RESET_BUTTON" text='RESET' />
+        </Frame>
+        <LabelFrame id="output_frame" text='output'>
+            <Label id="LABEL_MESSAGE"/>
+        </LabelFrame>
+    </Frame>
+    <LabelFrame id="main_side">
+        <Label id="MESSAGE_PANEL" text="Ctrl+S…Image Save Dialog" />
+        <Label id="LABEL_IMAGE" />
+    </LabelFrame>
 </Window>
