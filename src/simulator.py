@@ -77,29 +77,22 @@ class Application(tk.Frame):
         self.master.title('AdaptiveThreshold Simulator Ver:{0}'.format(__version__))
         self.master.update_idletasks()
         self.data = None  # type: ImageData
-        self.component = {}
-        self.a_side = tk.Frame(self)
-        self.component[Panel.a_side] = self.a_side  # 左側のコンテンツ
-        self.main_side = tk.Frame(self)
-        self.component[Panel.main_side] = self.main_side  # 右側のコンテンツ
-        #self.top_frame = tk.LabelFrame(self.component[Panel.a_side], text='params')
-
-        #self.a_side =
-        #self.main_side = tk.Frame(self)  # 右側のコンテンツ
+        self.controls = {}
         # Data Bind Member
         self.var_file_name = tk.StringVar()
         self.var_creation_time = tk.StringVar()
         self.var_original = tk.BooleanVar(value=False)
         self.var_gray_scale = tk.BooleanVar(value=False)
         #
+        self.create_widgets()
+        #
         self.color_image = ImageWindow(self, cv2.IMREAD_COLOR, self.var_original)
         self.gray_scale_image = ImageWindow(self, cv2.IMREAD_GRAYSCALE, self.var_gray_scale)
+        # リストボックスの行数
         self.history = deque(maxlen=12)
         self.menu_bar = self.create_menubar()
         self.master.configure(menu=self.menu_bar)
-        self.create_widgets()
-        self.component[Panel.a_side].pack(side=tk.LEFT, anchor=tk.NW)
-        self.component[Panel.main_side].pack(side=tk.LEFT, expand=True, fill=tk.BOTH, anchor=tk.NW)
+
 
     def create_widgets(self):
         """
@@ -110,92 +103,6 @@ class Application(tk.Frame):
             1-3,出力欄
             2,右側のコンテンツ  main_side
         """
-
-        self.controls = dict()
-        import xml.etree.ElementTree as ET
-        widget_names = {"Button": tk.Button, "Frame": tk.Frame, "Label": tk.Label, "LabelFrame": tk.LabelFrame,
-                        "Scale": tk.Scale}
-
-        tree = ET.parse('MainWindow.xml')
-        # 親,子のMAP
-        parent_map = {c: p for p in tree.iter() for c in p}
-
-        frames = {}
-        #for k in parent_map.keys():
-
-
-        #print(parent_map)
-        import copy
-        for child in tree.iter():
-            print(child)
-            attribute = copy.deepcopy(child.attrib)  # type:dict
-            control_name = attribute.pop('id', None)
-
-            if child.tag == "Window": # fillterに
-                continue
-
-            parent = parent_map.get(child)
-            if parent is None:
-                parent = frames.get(self.master)
-            else:
-                parent = frames.get(parent.tag)
-
-            print(child.tag, control_name)
-            widget = widget_names[child.tag]
-            if child.tag in ["LabelFrame", "Frame"]:
-                w = widget(self.a_side, attribute)
-                frames[child.tag] = w
-            else:
-                w = widget(parent, attribute)
-            self.controls[control_name] = w
-
-        self.top_frame = self.controls["top_frame"]
-        self.top_frame.pack(anchor=tk.NW)
-        #for k, v in data.items():
-        #    widget, parent, params = v
-        #    self.controls[k] = widget(parent, params)
-        from pprint import PrettyPrinter
-        pp = PrettyPrinter()
-        pp.pprint(self.controls)
-        #print()
-        self.scale_reset()
-        # コマンドの登録処理
-        # この位置で登録するのは self.draw イベントの発生を抑止するため。
-        for child in self.top_frame.children.values():
-            child.configure(command=self.draw)
-            child.pack()
-
-        self.button_reset = self.controls["RESET_BUTTON"]
-        self.button_reset.configure(command=self.scale_reset)
-        self.button_reset.pack()
-        self.controls["command_frame"].pack()
-        self.create_output_frame()
-
-        # create main side widget
-        self.message_panel = tk.Label(self.main_side, text='Ctrl+S…Image Save Dialog')
-        self.message_panel.pack(anchor=tk.NW)
-        self.entry_filename = tk.Entry(self.main_side, textvariable=self.var_file_name)
-        # fillで横にテキストボックスを伸ばす
-        self.entry_filename.pack(anchor=tk.NW, fill=tk.X)
-        self.entry_creation_time = tk.Entry(self.main_side, textvariable=self.var_creation_time)
-        # fillで横にテキストボックスを伸ばす
-        self.entry_creation_time.pack(anchor=tk.NW, fill=tk.X)
-
-        #self.entry_filename.pack(anchor=tk.NW, expand=True, fill=tk.X)
-        self.label_image = tk.Label(self.main_side)
-        self.label_image.np = None
-        self.label_image.pack(anchor=tk.NW, pady=10)
-        #self.label_image.pack(anchor=tk.NW, fill=tk.BOTH)
-        #self.label_image.pack(anchor=tk.NW, expand=True, fill=tk.BOTH)
-
-    def create_output_frame(self):
-        """
-            パラメータ値の出力欄
-        """
-        self.controls["output_frame"].pack(side=tk.TOP, fill=tk.Y)
-        self.controls["LABEL_MESSAGE"].configure(text='Select a row and Ctrl+C\nCopy it to the clipboard.')
-        self.controls["LABEL_MESSAGE"].pack(expand=True, side=tk.TOP, fill=tk.X)
-
         class ScrollListBox(tk.Listbox):
             """
             スクロールバー対応のリストボックス
@@ -210,8 +117,6 @@ class Application(tk.Frame):
                 self.x_scrollbar = tk.Scrollbar(master, orient=tk.HORIZONTAL, command=self.xview)
                 self.x_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
                 self.configure(xscrollcommand=self.x_scrollbar.set)
-                self.pack(side=tk.LEFT, fill=tk.Y)
-
 
 
         class ScrollTreeview(ttk.Treeview):
@@ -229,9 +134,77 @@ class Application(tk.Frame):
                 self.x_scrollbar = tk.Scrollbar(master, orient=tk.VERTICAL, command=self.xview)
                 self.x_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
                 self.configure(yscrollcommand=self.x_scrollbar.set)
-                #self.pack(side=tk.LEFT, fill=tk.Y)
-        #self.listbox = ScrollListBox(self.output_frame, width=40, height=self.history.maxlen)
-        self.listbox = ScrollListBox(self.controls["output_frame"], width=40, height=self.history.maxlen)
+
+
+        import xml.etree.ElementTree as ET
+        widget_names = {"Button": tk.Button, "Entry": tk.Entry, "Frame": tk.Frame,
+                        "Label": tk.Label, "LabelFrame": tk.LabelFrame,
+                        "Scale": tk.Scale, "ScrollListBox": ScrollListBox}
+
+        tree = ET.parse('MainWindow.xml')
+        # 親,子のMAP
+        parent_map = {c: p for p in tree.iter() for c in p}
+        # フレームだけのコンポーネント
+        frames = {}
+
+        import copy
+        for child in tree.iter():
+            print(child)
+            attribute = copy.deepcopy(child.attrib)  # type:dict
+            control_name = attribute.pop('id', None)
+            if child.tag == "Window": # fillterに
+                continue
+            parent = frames.get(parent_map.get(child).tag, self.master)
+            print(child.tag, control_name)
+            widget = widget_names[child.tag]
+            if child.tag in ["LabelFrame", "Frame"]:
+                w = widget(parent, attribute)
+                #print(parent.title)
+                frames[child.tag] = w
+            else:
+                w = widget(parent, attribute)
+            self.controls[control_name] = w
+        # 左側のコンテンツ
+        self.controls["a_side"].pack(side=tk.LEFT, anchor=tk.NW)
+        self.top_frame = self.controls["top_frame"]
+        self.top_frame.pack(anchor=tk.NW)
+
+        from pprint import PrettyPrinter
+        pp = PrettyPrinter()
+        pp.pprint(self.controls)
+
+        self.scale_reset()
+        # コマンドの登録処理
+        # この位置で登録するのは self.draw イベントの発生を抑止するため。
+        for child in self.top_frame.children.values():
+            child.configure(command=self.draw)
+            child.pack()
+
+        self.button_reset = self.controls["RESET_BUTTON"]
+        self.button_reset.configure(command=self.scale_reset)
+        self.button_reset.pack()
+        self.controls["command_frame"].pack()
+        # パラメータ値の出力欄
+        self.controls["output_frame"].pack(side=tk.TOP, fill=tk.Y)
+        # 改行コードが無効化されるので、configureで
+        self.controls["LABEL_MESSAGE"].configure(text='Select a row and Ctrl+C\nCopy it to the clipboard.')
+        self.controls["LABEL_MESSAGE"].pack(expand=True, side=tk.TOP, fill=tk.X)
+        self.controls["LISTBOX"].pack(side=tk.LEFT, fill=tk.Y)
+
+        # 右側のコンテンツ
+        self.controls["main_side"].pack(side=tk.LEFT, expand=True, fill=tk.BOTH, anchor=tk.NW)
+        # create main side widget
+        self.controls["MESSAGE_PANEL"].pack(anchor=tk.NW)
+        self.controls["ENTRY_FILENAME"].configure(textvariable=self.var_file_name)
+        # fillで横にテキストボックスを伸ばす
+        self.controls["ENTRY_FILENAME"].pack(anchor=tk.NW, fill=tk.X)
+        self.controls["ENTRY_CREATION_TIME"].configure(textvariable=self.var_creation_time)
+        # fillで横にテキストボックスを伸ばす
+        self.controls["ENTRY_CREATION_TIME"].pack(anchor=tk.NW, fill=tk.X)
+
+        self.label_image = self.controls["LABEL_IMAGE"]
+        self.label_image.np = None
+        self.label_image.pack(anchor=tk.NW, pady=10)
 
     def create_menubar(self) -> tk.Menu:
         """
@@ -381,8 +354,10 @@ class Application(tk.Frame):
         params = self.get_params()
         _, _, _, block_size, c = params
         if block_size % 2 == 0:
+            LOGGER.info("invalid parameter")
             return
         if (block_size * block_size - c) < 0:
+            LOGGER.info("invalid parameter")
             return
         try:
             # グレースケール画像を2値化
@@ -391,9 +366,9 @@ class Application(tk.Frame):
             insert_str = 'ret = cv2.adaptiveThreshold(src, {0})'.format(', '.join(map(str, params)))
             # 先頭に追加
             self.history.appendleft(insert_str)
-            self.listbox.delete(0, tk.END)
+            self.controls["LISTBOX"].delete(0, tk.END)
             for text in self.history:
-                self.listbox.insert(tk.END, text)
+                self.controls["LISTBOX"].insert(tk.END, text)
             ct()
             WidgetUtils.update_image(self.label_image, result)
             ct()

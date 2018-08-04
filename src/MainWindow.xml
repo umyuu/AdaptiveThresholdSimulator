@@ -12,10 +12,13 @@
         </Frame>
         <LabelFrame id="output_frame" text='output'>
             <Label id="LABEL_MESSAGE"/>
+            <ScrollListBox id="LISTBOX" width="40" height="12" />
         </LabelFrame>
     </Frame>
-    <LabelFrame id="main_side">
+    <Frame id="main_side">
         <Label id="MESSAGE_PANEL" text="Ctrl+S…Image Save Dialog" />
-        <Label id="LABEL_IMAGE" />
-    </LabelFrame>
+        <Entry id="ENTRY_FILENAME" />
+        <Entry id="ENTRY_CREATION_TIME" />
+        <Label id="LABEL_IMAGE"/>
+    </Frame>
 </Window>
