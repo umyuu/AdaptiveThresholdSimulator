@@ -112,9 +112,12 @@ def main():
     """
     import xml.etree.ElementTree as ET
     tree = ET.parse('MainWindow.xml')
-    root = tree.getroot()
-    for child in root:
+    for child in tree.getroot().iter():
         print(child.tag, child.attrib)
+    print("AAAAA")
+    for root in tree.getroot():
+        for child in root.iter():
+            print(child.tag, child.attrib)
 
 
 

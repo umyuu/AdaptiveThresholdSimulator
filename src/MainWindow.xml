@@ -8,10 +8,11 @@
             <Scale id="C" label="C" from_="0" to="255" length="300" orient="horizontal" />
         </LabelFrame>
         <Frame id="command_frame">
-            <Button id="RESET_BUTTON" text='RESET' />
+            <Label id="INVALID" text='INVALID'  bg='red' relief="ridge"/>
+            <Button id="RESET_BUTTON" text='RESET(R)' />
         </Frame>
         <LabelFrame id="output_frame" text='output'>
-            <Label id="LABEL_MESSAGE"/>
+            <Label id="LABEL_MESSAGE" />
             <ScrollListBox id="LISTBOX" width="40" height="12" />
         </LabelFrame>
     </Frame>

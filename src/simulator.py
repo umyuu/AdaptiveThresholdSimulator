@@ -2,7 +2,7 @@
 """
     AdaptiveThreshold Simulator
 """
-from collections import deque
+from collections import deque, OrderedDict
 from datetime import datetime
 from enum import Enum, auto
 from functools import partial
@@ -56,17 +56,6 @@ class SplashScreen(tk.Frame):
         super().__init__(master)
 
 
-class CONTROLS(Enum):
-    ADAPTIVE = "ADAPTIVE"
-    THRESHOLD_TYPE = "THRESHOLD_TYPE"
-    BLOCK_SIZE = "BLOCK_SIZE"
-    C = "C"
-
-class Panel(Enum):
-    a_side = auto()
-    main_side = auto()
-
-
 class Application(tk.Frame):
     """
         Main Window
@@ -77,7 +66,7 @@ class Application(tk.Frame):
         self.master.title('AdaptiveThreshold Simulator Ver:{0}'.format(__version__))
         self.master.update_idletasks()
         self.data = None  # type: ImageData
-        self.controls = {}
+        self.controls = OrderedDict() # 画面項目
         # Data Bind Member
         self.var_file_name = tk.StringVar()
         self.var_creation_time = tk.StringVar()
@@ -148,44 +137,46 @@ class Application(tk.Frame):
         frames = {}
 
         import copy
-        for child in tree.iter():
-            print(child)
-            attribute = copy.deepcopy(child.attrib)  # type:dict
-            control_name = attribute.pop('id', None)
-            if child.tag == "Window": # fillterに
-                continue
-            parent = frames.get(parent_map.get(child).tag, self.master)
-            print(child.tag, control_name)
-            widget = widget_names[child.tag]
-            if child.tag in ["LabelFrame", "Frame"]:
+        for root in tree.getroot():
+            # Windowを除外するために、ループを分ける。
+            for child in root.iter():
+                attribute = copy.deepcopy(child.attrib)  # type:dict
+                control_name = attribute.pop('id', None)
+                # 親を検索する。
+                parent = frames.get(parent_map.get(child).tag, self.master)
+                widget = widget_names[child.tag]
+                # 画面項目の生成
                 w = widget(parent, attribute)
-                #print(parent.title)
-                frames[child.tag] = w
-            else:
-                w = widget(parent, attribute)
-            self.controls[control_name] = w
+                if child.tag in ["LabelFrame", "Frame"]:
+                    # フレームを登録
+                    frames[child.tag] = w
+                self.controls[control_name] = w
+
         # 左側のコンテンツ
         self.controls["a_side"].pack(side=tk.LEFT, anchor=tk.NW)
-        self.top_frame = self.controls["top_frame"]
-        self.top_frame.pack(anchor=tk.NW)
+        self.controls["top_frame"].pack(anchor=tk.NW)
 
         from pprint import PrettyPrinter
         pp = PrettyPrinter()
         pp.pprint(self.controls)
 
-        self.scale_reset()
+        self.scale_reset(None)
         # コマンドの登録処理
         # この位置で登録するのは self.draw イベントの発生を抑止するため。
-        for child in self.top_frame.children.values():
+        for child in self.controls["top_frame"].children.values():
             child.configure(command=self.draw)
             child.pack()
 
-        self.button_reset = self.controls["RESET_BUTTON"]
-        self.button_reset.configure(command=self.scale_reset)
-        self.button_reset.pack()
+        #self.controls["INVALID"].pack(side=tk.LEFT)
+        WidgetUtils.bind_all(self.controls["RESET_BUTTON"], 'Control', 'R', self.scale_reset)
+        self.controls["RESET_BUTTON"].configure(command=partial(self.scale_reset, event=None))
+        self.controls["RESET_BUTTON"].pack(side=tk.LEFT)
         self.controls["command_frame"].pack()
+        #self.controls["command_frame"].pack(side=tk.TOP)
         # パラメータ値の出力欄
-        self.controls["output_frame"].pack(side=tk.TOP, fill=tk.Y)
+        self.controls["output_frame"].pack()
+        #self.controls["output_frame"].pack(side=tk.BOTTOM, fill=tk.Y)
+
         # 改行コードが無効化されるので、configureで
         self.controls["LABEL_MESSAGE"].configure(text='Select a row and Ctrl+C\nCopy it to the clipboard.')
         self.controls["LABEL_MESSAGE"].pack(expand=True, side=tk.TOP, fill=tk.X)
@@ -253,7 +244,7 @@ class Application(tk.Frame):
         menu_bar.add_cascade(menu=crate_image_menu(), label='Image')
         return menu_bar
 
-    def scale_reset(self) ->None:
+    def scale_reset(self, event) ->None:
         """
         パラメータのリセット
         """
