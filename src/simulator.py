@@ -61,11 +61,10 @@ class Application(tk.Frame):
         Main Window
     """
 
-    def __init__(self, master=None, file_name:str='MainWindow.xml'):
+    def __init__(self, master=None, file_name:str=None):
         super().__init__(master)
         self.master.title('AdaptiveThreshold Simulator Ver:{0}'.format(__version__))
         self.master.update_idletasks()
-        self.xml_file = file_name
         self.data = None  # type: ImageData
         self.controls = OrderedDict() # 画面項目
         # Data Bind Member
@@ -74,17 +73,17 @@ class Application(tk.Frame):
         self.var_original = tk.BooleanVar(value=False)
         self.var_gray_scale = tk.BooleanVar(value=False)
         #
-        self.create_widgets()
-        #
         self.color_image = ImageWindow(self, cv2.IMREAD_COLOR, self.var_original)
         self.gray_scale_image = ImageWindow(self, cv2.IMREAD_GRAYSCALE, self.var_gray_scale)
+        #
+        self.create_widgets(file_name)
+        #
         # リストボックスの行数
         self.history = deque(maxlen=12)
         self.menu_bar = self.create_menubar()
         self.master.configure(menu=self.menu_bar)
 
-
-    def create_widgets(self):
+    def create_widgets(self, xml_file:str=None):
         """
             メイン画面項目を生成/配置
             1,左側のコンテンツ  a_side
@@ -92,6 +91,7 @@ class Application(tk.Frame):
             1-2,コマンド欄
             1-3,出力欄
             2,右側のコンテンツ  main_side
+            :param XMLファイル名
         """
         class ScrollListBox(tk.Listbox):
             """
@@ -129,9 +129,10 @@ class Application(tk.Frame):
         import xml.etree.ElementTree as ET
         widget_names = {"Button": tk.Button, "Entry": tk.Entry, "Frame": tk.Frame,
                         "Label": tk.Label, "LabelFrame": tk.LabelFrame,
+                        "Menu": tk.Menu, "MenuBar": tk.Menu,
                         "Scale": tk.Scale, "ScrollListBox": ScrollListBox}
 
-        tree = ET.parse(self.xml_file)
+        tree = ET.parse(xml_file)
         # 親,子のMAP
         parent_map = {c: p for p in tree.iter() for c in p}
         # フレームだけのコンポーネント
@@ -145,10 +146,18 @@ class Application(tk.Frame):
                 control_name = attribute.pop('id', None)
                 # 親を検索する。
                 parent = frames.get(parent_map.get(child).tag, self.master)
+                #if child.tag == "MenuBar":
+                #    print(control_name)
+                #    self.menu_bar = self.create_menubar()
+                #    self.master.configure(menu=self.menu_bar)
+                #    continue
                 widget = widget_names[child.tag]
+                attributes = {key: v for key, v in attribute.items() if not key.startswith("data-")}
                 # 画面項目の生成
-                w = widget(parent, attribute)
-                if child.tag in ["LabelFrame", "Frame"]:
+                w = widget(parent, attributes)
+                # data-* 属性を登録
+                w.data_attributes = {key: v for key, v in attribute.items() if key.startswith("data-")}
+                if child.tag in ["LabelFrame", "Frame", "Menu", "MenuBar"]:
                     # フレームを登録
                     frames[child.tag] = w
                 self.controls[control_name] = w
@@ -171,6 +180,7 @@ class Application(tk.Frame):
         #self.controls["INVALID"].pack(side=tk.LEFT)
         WidgetUtils.bind_all(self.controls["RESET_BUTTON"], 'Control', 'R', self.scale_reset)
         self.controls["RESET_BUTTON"].configure(command=partial(self.scale_reset, event=None))
+        #self.controls["RESET_BUTTON"].configure(command=self.scale_reset)
         self.controls["RESET_BUTTON"].pack()
         #self.controls["command_frame"].pack()
         self.controls["command_frame"].pack(side=tk.TOP)
@@ -203,13 +213,10 @@ class Application(tk.Frame):
         MenuBarの作成
         :return:
         """
-        menu_bar = tk.Menu(self, tearoff=False)
-
-        def crate_file_menu() -> tk.Menu:
+        def crate_file_menu(menu) -> tk.Menu:
             """
             ファイルメニュー
             """
-            menu = tk.Menu(self, tearoff=False)
             # open
             menu.add_command(label='Open(O)...', under=6, accelerator='Ctrl+O',
                              command=self.open_filedialog)
@@ -224,11 +231,10 @@ class Application(tk.Frame):
             WidgetUtils.bind_all(self, 'Control-Shift', 'Q', self.on_application_exit)
             return menu
 
-        def crate_image_menu() -> tk.Menu:
+        def crate_image_menu(menu) -> tk.Menu:
             """
             イメージメニュー
             """
-            menu = tk.Menu(self, tearoff=False)
             menu.add_checkbutton(label="Show Original Image...", accelerator='Ctrl+1',
                                  command=partial(self.toggle_changed, sender=self.color_image),
                                  variable=self.var_original)
@@ -241,9 +247,9 @@ class Application(tk.Frame):
                                  partial(self.toggle_changed, sender=self.gray_scale_image, toggle=True))
             return menu
 
-        menu_bar.add_cascade(menu=crate_file_menu(), label='File')
-        menu_bar.add_cascade(menu=crate_image_menu(), label='Image')
-        return menu_bar
+        for menu in [crate_file_menu(self.controls["File"]), crate_image_menu(self.controls["Image"])]:
+            self.controls["menu_bar"].add_cascade(menu=menu, label=menu.data_attributes['data-label'])
+        return self.controls["menu_bar"]
 
     def scale_reset(self, event) ->None:
         """
@@ -411,13 +417,11 @@ def main(entry_point=False):
         loop.set_default_executor(io_pool)
         argv = sys.argv[1:]
         xml_file = "MainWindow.xml"
+        # pytestより起動時
         if not entry_point:
-            # pytestより起動時
             argv.pop()
             argv.append(r'../images/kodim07.png')
             xml_file = str(Path("../src", xml_file))
-
-
 
         args = parse_args(argv)
         LOGGER.info('args:%s', args)
