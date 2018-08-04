@@ -61,10 +61,11 @@ class Application(tk.Frame):
         Main Window
     """
 
-    def __init__(self, master=None):
+    def __init__(self, master=None, file_name:str='MainWindow.xml'):
         super().__init__(master)
         self.master.title('AdaptiveThreshold Simulator Ver:{0}'.format(__version__))
         self.master.update_idletasks()
+        self.xml_file = file_name
         self.data = None  # type: ImageData
         self.controls = OrderedDict() # 画面項目
         # Data Bind Member
@@ -130,7 +131,7 @@ class Application(tk.Frame):
                         "Label": tk.Label, "LabelFrame": tk.LabelFrame,
                         "Scale": tk.Scale, "ScrollListBox": ScrollListBox}
 
-        tree = ET.parse('MainWindow.xml')
+        tree = ET.parse(self.xml_file)
         # 親,子のMAP
         parent_map = {c: p for p in tree.iter() for c in p}
         # フレームだけのコンポーネント
@@ -170,12 +171,12 @@ class Application(tk.Frame):
         #self.controls["INVALID"].pack(side=tk.LEFT)
         WidgetUtils.bind_all(self.controls["RESET_BUTTON"], 'Control', 'R', self.scale_reset)
         self.controls["RESET_BUTTON"].configure(command=partial(self.scale_reset, event=None))
-        self.controls["RESET_BUTTON"].pack(side=tk.LEFT)
-        self.controls["command_frame"].pack()
-        #self.controls["command_frame"].pack(side=tk.TOP)
+        self.controls["RESET_BUTTON"].pack()
+        #self.controls["command_frame"].pack()
+        self.controls["command_frame"].pack(side=tk.TOP)
         # パラメータ値の出力欄
-        self.controls["output_frame"].pack()
-        #self.controls["output_frame"].pack(side=tk.BOTTOM, fill=tk.Y)
+        #self.controls["output_frame"].pack()
+        self.controls["output_frame"].pack(side=tk.BOTTOM, fill=tk.Y)
 
         # 改行コードが無効化されるので、configureで
         self.controls["LABEL_MESSAGE"].configure(text='Select a row and Ctrl+C\nCopy it to the clipboard.')
@@ -409,10 +410,14 @@ def main(entry_point=False):
         loop = asyncio.get_event_loop()
         loop.set_default_executor(io_pool)
         argv = sys.argv[1:]
+        xml_file = "MainWindow.xml"
         if not entry_point:
             # pytestより起動時
             argv.pop()
             argv.append(r'../images/kodim07.png')
+            xml_file = str(Path("../src", xml_file))
+
+
 
         args = parse_args(argv)
         LOGGER.info('args:%s', args)
@@ -428,7 +433,7 @@ def main(entry_point=False):
         data = ImageData(image_file)
         ct()
         WidgetUtils.set_visible(root, True)
-        app = Application(root)
+        app = Application(root, xml_file)
         LOGGER.info('#' * 30)
         ct()
         app.load_image(data)

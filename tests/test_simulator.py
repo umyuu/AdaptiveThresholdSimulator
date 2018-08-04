@@ -2,8 +2,12 @@
 """
     unittest
 """
-import cv2
+import asyncio
+#from concurrent.futures import ThreadPoolExecutor as PoolExecutor
+from concurrent.futures import ProcessPoolExecutor as PoolExecutor
 from hashlib import sha384
+
+import cv2
 import pytest
 
 # test target
@@ -36,6 +40,8 @@ def file_hash_result() -> dict:
 
 @pytest.fixture
 def image_data() -> ImageData:
+    loop = asyncio.get_event_loop()
+    loop.set_default_executor(PoolExecutor(8))
     return ImageData(r'../images/kodim07.png')
 
 
