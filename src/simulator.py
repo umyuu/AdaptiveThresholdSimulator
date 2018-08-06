@@ -3,6 +3,7 @@
     AdaptiveThreshold Simulator
 """
 from collections import deque, OrderedDict
+from copy import deepcopy
 from datetime import datetime
 from enum import Enum, auto
 from functools import partial
@@ -11,13 +12,13 @@ import sys
 from timeit import Timer
 # gui
 import tkinter as tk
-import tkinter.ttk as ttk
+
 from tkinter import filedialog
 # library
 import cv2
 # PyCharm Unresolved reference Error PyCharm
 # @see https://stackoverflow.com/questions/21236824/unresolved-reference-issue-in-pycharm
-from widget_utils import  ImageData, WidgetUtils, ImageWindow
+from widget_utils import  ImageData, WidgetUtils, ImageWindow, ScrollListBox
 from reporter import get_current_reporter
 from stopwatch import stop_watch
 
@@ -50,11 +51,9 @@ def askopenfilename(widget: tk.Widget) -> str:
                         ('*', '*.*')]
     return filedialog.askopenfilename(parent=widget, filetypes=IMAGE_FILE_TYPES)
 
-
-class SplashScreen(tk.Frame):
-    def __init__(self, master=None):
-        super().__init__(master)
-
+for i in range(sys.maxsize, sys.maxsize + 5):
+    print(i)
+    print(type(i))
 
 class Application(tk.Frame):
     """
@@ -93,39 +92,6 @@ class Application(tk.Frame):
             2,右側のコンテンツ  main_side
             :param XMLファイル名
         """
-        class ScrollListBox(tk.Listbox):
-            """
-            スクロールバー対応のリストボックス
-            """
-            def __init__(self, master=None, cnf: dict = None, **kw):
-                if cnf is None:
-                    cnf = {}
-                super().__init__(master, cnf, **kw)
-                self.y_scrollbar = tk.Scrollbar(master, orient=tk.VERTICAL, command=self.yview)
-                self.y_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-                self.configure(yscrollcommand=self.y_scrollbar.set)
-                self.x_scrollbar = tk.Scrollbar(master, orient=tk.HORIZONTAL, command=self.xview)
-                self.x_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
-                self.configure(xscrollcommand=self.x_scrollbar.set)
-
-
-        class ScrollTreeview(ttk.Treeview):
-            """
-            スクロールバー対応のリストボックス
-            """
-            def __init__(self, master=None, cnf: dict = None, **kw):
-                if cnf is None:
-                    cnf = {}
-                super().__init__(master, cnf, **kw)
-                self.y_scrollbar = tk.Scrollbar(master, orient=tk.VERTICAL, command=self.yview)
-                self.y_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-                self.configure(yscrollcommand=self.y_scrollbar.set)
-                self.pack(side=tk.LEFT, fill=tk.Y)
-                self.x_scrollbar = tk.Scrollbar(master, orient=tk.VERTICAL, command=self.xview)
-                self.x_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
-                self.configure(yscrollcommand=self.x_scrollbar.set)
-
-
         import xml.etree.ElementTree as ET
         widget_names = {"Button": tk.Button, "Entry": tk.Entry, "Frame": tk.Frame,
                         "ImageWindow": ImageWindow,
@@ -137,12 +103,10 @@ class Application(tk.Frame):
         parent_map = {c: p for p in tree.iter() for c in p}
         # フレームだけのコンポーネント
         frames = {}
-
-        import copy
         for root in tree.getroot():
             # Windowを除外するために、ループを分ける。
             for child in root.iter():
-                attribute = copy.deepcopy(child.attrib)  # type:dict
+                attribute = deepcopy(child.attrib)  # type:dict
                 control_name = attribute.pop('id', None)
                 # 親を検索する。
                 parent = frames.get(parent_map.get(child).tag, self.master)
@@ -153,7 +117,7 @@ class Application(tk.Frame):
                 # data-* 属性を登録
                 w.data_attributes = {key: v for key, v in attribute.items() if key.startswith("data-")}
                 if child.tag in ["LabelFrame", "Frame", "Menu", "MenuBar"]:
-                    # フレームを登録
+                    # ウィンドウがある親を登録
                     frames[child.tag] = w
                 self.controls[control_name] = w
 

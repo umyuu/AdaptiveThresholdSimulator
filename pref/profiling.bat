@@ -1,5 +1,5 @@
-cd ..
+cd ..\src
 
-python -m cProfile -o pref\program.prof src\simulator.py images\sakura.jpg
-CALL pref\visualizer.BAT
+python -m cProfile -o ..\pref\program.prof simulator.py ..\images\sakura.jpg
+CALL ..\pref\visualizer.BAT
 TIMEOUT 30

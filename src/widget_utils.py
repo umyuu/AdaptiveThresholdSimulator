@@ -5,6 +5,7 @@
 """
 # GUI
 import tkinter as tk
+import tkinter.ttk as ttk
 # Library
 import cv2
 #
@@ -112,6 +113,44 @@ class ImageWindow(tk.Toplevel):
             タグ(Getter)
         """
         self.__var = value
+
+
+class ScrollListBox(tk.Listbox):
+    """
+    スクロールバー対応のListbox
+    """
+    def __init__(self, master=None, cnf: dict = None, **kw):
+        if cnf is None:
+            cnf = {}
+        super().__init__(master, cnf, **kw)
+        self.y_scrollbar = tk.Scrollbar(master, orient=tk.VERTICAL, command=self.yview)
+        self.y_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.configure(yscrollcommand=self.y_scrollbar.set)
+        self.x_scrollbar = tk.Scrollbar(master, orient=tk.HORIZONTAL, command=self.xview)
+        self.x_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.configure(xscrollcommand=self.x_scrollbar.set)
+
+
+class ScrollTreeview(ttk.Treeview):
+    """
+    スクロールバー対応のTreeview
+    """
+    def __init__(self, master=None, cnf: dict = None, **kw):
+        if cnf is None:
+            cnf = {}
+        super().__init__(master, cnf, **kw)
+        self.y_scrollbar = tk.Scrollbar(master, orient=tk.VERTICAL, command=self.yview)
+        self.y_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.configure(yscrollcommand=self.y_scrollbar.set)
+        self.pack(side=tk.LEFT, fill=tk.Y)
+        self.x_scrollbar = tk.Scrollbar(master, orient=tk.VERTICAL, command=self.xview)
+        self.x_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.configure(yscrollcommand=self.x_scrollbar.set)
+
+
+class SplashScreen(tk.Frame):
+    def __init__(self, master=None):
+        super().__init__(master)
 
 
 def main():

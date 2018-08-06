@@ -41,6 +41,5 @@ def main():
     resource.prefetch("aaa")
 
 
-
 if __name__ == "__main__":
     main()
