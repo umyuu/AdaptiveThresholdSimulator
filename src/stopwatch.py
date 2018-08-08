@@ -3,14 +3,14 @@
     StopWatch
     経過時間測定用
 """
-from reporter import get_current_reporter
+from src.reporter import get_current_reporter
 LOGGER = get_current_reporter()
-
+from time import perf_counter
+from traceback import extract_stack
+from itertools import count
 
 def stop_watch():
-    from time import perf_counter
-    from traceback import extract_stack
-    from itertools import count
+
     start_time = perf_counter()
     endt_time = start_time
     c = count()

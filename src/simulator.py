@@ -2,6 +2,11 @@
 """
     AdaptiveThreshold Simulator
 """
+import asyncio
+from argparse import ArgumentParser
+from concurrent.futures import ThreadPoolExecutor as PoolExecutor
+# from concurrent.futures import ProcessPoolExecutor as PoolExecutor
+import xml.etree.ElementTree as ET
 from collections import deque, OrderedDict
 from copy import deepcopy
 from datetime import datetime
@@ -18,10 +23,16 @@ from tkinter import filedialog
 import cv2
 # PyCharm Unresolved reference Error PyCharm
 # @see https://stackoverflow.com/questions/21236824/unresolved-reference-issue-in-pycharm
-from widget_utils import  ImageData, WidgetUtils, ImageWindow, ScrollListBox
-from reporter import get_current_reporter
-from stopwatch import stop_watch
+from src.widget_utils import  ImageData, WidgetUtils, ImageWindow, ScrollListBox, SplashScreen
+from src.reporter import get_current_reporter
+from src.stopwatch import stop_watch
 
+import sys, os
+# Pyinstall
+if getattr(sys, 'frozen', False):
+    application_path = sys._MEIPASS
+else:
+    application_path = os.path.dirname(os.path.abspath(__file__))
 
 PROGRAM_NAME = 'AdaptiveThreshold'
 __version__ = '0.0.5'
@@ -38,6 +49,7 @@ ImageFormat = {
     'PNM': ('*.pbm', '*.pgm', '*.ppm', )
 }
 
+
 def askopenfilename(widget: tk.Widget) -> str:
     """
     ファイルを開くダイアログ
@@ -51,9 +63,6 @@ def askopenfilename(widget: tk.Widget) -> str:
                         ('*', '*.*')]
     return filedialog.askopenfilename(parent=widget, filetypes=IMAGE_FILE_TYPES)
 
-for i in range(sys.maxsize, sys.maxsize + 5):
-    print(i)
-    print(type(i))
 
 class Application(tk.Frame):
     """
@@ -92,17 +101,20 @@ class Application(tk.Frame):
             2,右側のコンテンツ  main_side
             :param XMLファイル名
         """
-        import xml.etree.ElementTree as ET
+
         widget_names = {"Button": tk.Button, "Entry": tk.Entry, "Frame": tk.Frame,
                         "ImageWindow": ImageWindow,
                         "Label": tk.Label, "LabelFrame": tk.LabelFrame,
                         "Menu": tk.Menu, "MenuBar": tk.Menu,
                         "Scale": tk.Scale, "ScrollListBox": ScrollListBox}
         tree = ET.parse(xml_file)
+        #tree = ET.fromstring(xml_file)
+        print(tree)
         # 親,子のMAP
         parent_map = {c: p for p in tree.iter() for c in p}
         # フレームだけのコンポーネント
         frames = {}
+        #for root in tree:
         for root in tree.getroot():
             # Windowを除外するために、ループを分ける。
             for child in root.iter():
@@ -354,7 +366,7 @@ def parse_args(args: list):
     """
         コマンドライン引数の解析
     """
-    from argparse import ArgumentParser
+
     parser = ArgumentParser(prog=PROGRAM_NAME, description='AdaptiveThreshold Simulator')
     parser.add_argument('input_file', metavar=None, nargs='?')
     parser.add_argument('--version', action='version', version='%(prog)s {0}'.format(__version__))
@@ -367,21 +379,18 @@ def main(entry_point=False):
         画像イメージを非同期で読み込む
         :param entry_point:True アプリを通常起動、False Pytestより起動
     """
-    import asyncio
-    from concurrent.futures import ThreadPoolExecutor as PoolExecutor
-    #from concurrent.futures import ProcessPoolExecutor as PoolExecutor
-
     with PoolExecutor(8) as io_pool:
         loop = asyncio.get_event_loop()
         loop.set_default_executor(io_pool)
         argv = sys.argv[1:]
-        xml_file = "MainWindow.xml"
+        xml_file = str(Path(application_path, "MainWindow.xml"))
         # pytestより起動時
         if not entry_point:
             argv.pop()
             argv.append(r'../images/kodim07.png')
             xml_file = str(Path("../src", xml_file))
-
+        else:
+            pass
         args = parse_args(argv)
         LOGGER.info('args:%s', args)
         root = tk.Tk()

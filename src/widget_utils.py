@@ -9,9 +9,9 @@ import tkinter.ttk as ttk
 # Library
 import cv2
 #
-from image_utils import ImageData
-from reporter import get_current_reporter
-from stopwatch import stop_watch
+from src.image_utils import ImageData
+from src.reporter import get_current_reporter
+from src.stopwatch import stop_watch
 
 LOGGER = get_current_reporter()
 ct = stop_watch()

@@ -13,12 +13,11 @@ from typing import overload
 import numpy as np
 import cv2
 #
-from reporter import get_current_reporter
-from stopwatch import stop_watch
+from src.reporter import get_current_reporter
+from src.stopwatch import stop_watch
 
 LOGGER = get_current_reporter()
 ct = stop_watch()
-
 
 def read_file(file_name: str):
     p = Path(file_name)

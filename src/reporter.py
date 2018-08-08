@@ -23,7 +23,6 @@ def __make_reporter(name: str='AdaptiveThreshold'):
     handler.setFormatter(formatter)
     handler.setLevel(DEBUG)
     logger = getLogger(name)
-    #logger = getLogger(name)
     logger.setLevel(DEBUG)
     logger.addHandler(handler)
     # asyncioのログレベルを変更
