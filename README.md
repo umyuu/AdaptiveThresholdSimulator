@@ -6,9 +6,9 @@ cv2.adaptiveThreshold function parameter Simulator.
 ![AdaptiveThresholdSimulator](docs/dialog.png)
 ## Install
 [Download Releases File](https://github.com/umyuu/AdaptiveThresholdSimulator/releases)
+Caution:**File Size 50MB Over.**
 
-
-## Synopsis
+### For Users
 - Windows
 ```
 dist\win\simulator.exe
@@ -26,17 +26,10 @@ python simulator.py images\kodim07.png
 ```
 
 ___
-## Developer Setup.
-+ Setup
-    + [download a ZIP](https://github.com/umyuu/AdaptiveThresholdSimulator/archive/master.zip) file.
-    + Install dependencies.
+### For Developers
+1. [download a ZIP](https://github.com/umyuu/AdaptiveThresholdSimulator/archive/master.zip) file.
+1. Install dependencies.
  [requirements install.](requirements.txt)
-
-+ Dependencies
-    + python 3.5+
-    + GUI widget: tkinter
-    + opencv3
-    + Numpy
 
 ## Source code License.
 [MIT License](LICENSE)
