@@ -1,0 +1,27 @@
+﻿version: 1
+
+formatters:
+  customFormatter:
+    format: '%(asctime)s.%(msecs)03d pid:%(process)05d, tid:%(thread)05d - %(message)s'
+    datefmt: '%H:%M:%S'
+    class: logging.Formatter
+
+loggers:
+  console:
+    handlers: [consoleHandler]
+    level: DEBUG
+    qualname: console
+    propagate: True
+
+handlers:
+  consoleHandler:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: customFormatter
+    stream: ext://sys.stderr
+
+root:
+  level: DEBUG
+  handlers: [consoleHandler]
+
+disable_existing_loggers: False

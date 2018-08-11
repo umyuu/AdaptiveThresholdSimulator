@@ -6,19 +6,21 @@ import asyncio
 from argparse import ArgumentParser
 from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 # from concurrent.futures import ProcessPoolExecutor as PoolExecutor
-import xml.etree.ElementTree as ET
+
 from collections import deque, OrderedDict
 from copy import deepcopy
 from datetime import datetime
 from enum import Enum, auto
 from functools import partial
+from multiprocessing import freeze_support
 from pathlib import Path
 import sys
-from timeit import Timer
 # gui
 import tkinter as tk
-
 from tkinter import filedialog
+from timeit import Timer
+import xml.etree.ElementTree as ET
+
 # library
 import cv2
 # PyCharm Unresolved reference Error PyCharm
@@ -27,12 +29,12 @@ from src.widget_utils import  ImageData, WidgetUtils, ImageWindow, ScrollListBox
 from src.reporter import get_current_reporter
 from src.stopwatch import stop_watch
 
-import sys, os
 # Pyinstall
 if getattr(sys, 'frozen', False):
-    application_path = sys._MEIPASS
+    APPLICATION_PATH = sys._MEIPASS
 else:
-    application_path = os.path.dirname(os.path.abspath(__file__))
+    APPLICATION_PATH = str(Path(__file__).parent)
+
 
 PROGRAM_NAME = 'AdaptiveThreshold'
 __version__ = '0.0.5'
@@ -69,7 +71,7 @@ class Application(tk.Frame):
         Main Window
     """
 
-    def __init__(self, master=None, file_name:str=None):
+    def __init__(self, master=None, file_name: Path=None):
         super().__init__(master)
         self.master.title('AdaptiveThreshold Simulator Ver:{0}'.format(__version__))
         self.master.update_idletasks()
@@ -91,7 +93,7 @@ class Application(tk.Frame):
         self.history = deque(maxlen=12)
         self.master.configure(menu=self.create_menubar())
 
-    def create_widgets(self, xml_file:str=None):
+    def create_widgets(self, xml_file: Path = None):
         """
             メイン画面項目を生成/配置
             1,左側のコンテンツ  a_side
@@ -99,17 +101,15 @@ class Application(tk.Frame):
             1-2,コマンド欄
             1-3,出力欄
             2,右側のコンテンツ  main_side
-            :param XMLファイル名
+            :param xml_file XMLファイル名
         """
-
         widget_names = {"Button": tk.Button, "Entry": tk.Entry, "Frame": tk.Frame,
                         "ImageWindow": ImageWindow,
                         "Label": tk.Label, "LabelFrame": tk.LabelFrame,
                         "Menu": tk.Menu, "MenuBar": tk.Menu,
                         "Scale": tk.Scale, "ScrollListBox": ScrollListBox}
-        tree = ET.parse(xml_file)
+        tree = ET.parse(str(xml_file))
         #tree = ET.fromstring(xml_file)
-        print(tree)
         # 親,子のMAP
         parent_map = {c: p for p in tree.iter() for c in p}
         # フレームだけのコンポーネント
@@ -136,11 +136,6 @@ class Application(tk.Frame):
         # 左側のコンテンツ
         self.controls["a_side"].pack(side=tk.LEFT, anchor=tk.NW)
         self.controls["top_frame"].pack(anchor=tk.NW)
-
-        #from pprint import PrettyPrinter
-        #pp = PrettyPrinter()
-        #pp.pprint(self.controls)
-
         self.scale_reset(None)
         # コマンドの登録処理
         # この位置で登録するのは self.draw イベントの発生を抑止するため。
@@ -174,9 +169,8 @@ class Application(tk.Frame):
         # fillで横にテキストボックスを伸ばす
         self.controls["ENTRY_CREATION_TIME"].pack(anchor=tk.NW, fill=tk.X)
 
-        self.label_image = self.controls["LABEL_IMAGE"]
-        self.label_image.np = None
-        self.label_image.pack(anchor=tk.NW, pady=10)
+        self.controls["LABEL_IMAGE"].np = None
+        self.controls["LABEL_IMAGE"].pack(anchor=tk.NW, pady=10)
 
     def create_menubar(self) -> tk.Menu:
         """
@@ -270,7 +264,6 @@ class Application(tk.Frame):
         file_path = askopenfilename(self)
         if not file_path:  # isEmpty
             return
-
         ct()
         self.load_image(ImageData(file_path), True)
         ct()
@@ -294,7 +287,7 @@ class Application(tk.Frame):
                                                  title='名前を付けて保存...')
         if not file_path:  # isEmpty
             return
-        ImageData.imwrite(file_path, self.label_image.np)
+        ImageData.imwrite(file_path, self.controls["LABEL_IMAGE"].np)
         LOGGER.info('saved:%s', file_path)
 
     def get_params(self) -> tuple:
@@ -338,7 +331,7 @@ class Application(tk.Frame):
             for text in self.history:
                 self.controls["LISTBOX"].insert(tk.END, text)
             ct()
-            WidgetUtils.update_image(self.label_image, result)
+            WidgetUtils.update_image(self.controls["LABEL_IMAGE"], result)
             ct()
             LOGGER.info('#' * 50)
         except BaseException as ex:
@@ -356,7 +349,7 @@ class Application(tk.Frame):
         if redraw:
             # self.draw(None)のエラーチェック条件に一致するとメインウィンドウの画像が更新されない。
             # そのため、こちらで更新する。
-            WidgetUtils.update_image(self.label_image, self.data.gray_scale)
+            WidgetUtils.update_image(self.controls["LABEL_IMAGE"], self.data.gray_scale)
             # 画像を変更時にオリジナルとグレースケール画像も更新
             self.toggle_changed(sender=self.color_image)
             self.toggle_changed(sender=self.gray_scale_image)
@@ -366,14 +359,14 @@ def parse_args(args: list):
     """
         コマンドライン引数の解析
     """
-
     parser = ArgumentParser(prog=PROGRAM_NAME, description='AdaptiveThreshold Simulator')
     parser.add_argument('input_file', metavar=None, nargs='?')
+    parser.add_argument('--cache_size', type=int, default=256)
     parser.add_argument('--version', action='version', version='%(prog)s {0}'.format(__version__))
     return parser.parse_args(args)
 
 
-def main(entry_point=False):
+def main(entry_point: bool=False):
     """
         Entry Point
         画像イメージを非同期で読み込む
@@ -383,14 +376,12 @@ def main(entry_point=False):
         loop = asyncio.get_event_loop()
         loop.set_default_executor(io_pool)
         argv = sys.argv[1:]
-        xml_file = str(Path(application_path, "MainWindow.xml"))
-        # pytestより起動時
+        xml_file = Path(APPLICATION_PATH, "MainWindow.xml")
+
         if not entry_point:
+            # pytestより起動時に第一引数にpytestのパスが入るので削除。
             argv.pop()
             argv.append(r'../images/kodim07.png')
-            xml_file = str(Path("../src", xml_file))
-        else:
-            pass
         args = parse_args(argv)
         LOGGER.info('args:%s', args)
         root = tk.Tk()
@@ -404,7 +395,6 @@ def main(entry_point=False):
 
         data = ImageData(image_file)
         ct()
-        WidgetUtils.set_visible(root, True)
         app = Application(root, xml_file)
         LOGGER.info('#' * 30)
         ct()
@@ -417,6 +407,7 @@ def main(entry_point=False):
         def finish():
             return ct()
 
+        WidgetUtils.set_visible(root, True)
         if entry_point:
             app.after(0, finish)
             app.mainloop()
@@ -425,4 +416,6 @@ def main(entry_point=False):
 
 
 if __name__ == "__main__":
+    # @see https://github.com/pyinstaller/pyinstaller/wiki/Recipe-Multiprocessing
+    freeze_support()
     main(True)
